@@ -1,0 +1,117 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(corrplot)
+library(ggplot2)
+library(tidyverse)
+library(readxl)
+library(mongolite)
+library(sqldf)
+
+library(read)
+
+```
+
+```{r}
+#dir igal
+df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
+
+df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
+
+df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
+
+#dir Nacho
+#df_artist <- read.csv()
+
+#df_charts <- read.csv()
+
+#df_audio_features <- read.csv()
+
+#dir Mateo
+#df_artist <- read.csv()
+
+#df_charts <- read.csv()
+
+#df_audio_features <- read.csv()
+
+```
+
+
+```{r}
+
+#features var_ continuos
+features <- c('acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness',   'tempo', 'valence')
+
+
+summary(df_audio_features[, features])
+
+for (i in features){
+  hist(df_audio_features[, i], main= i)
+
+}
+
+x <- cor(df_audio_features[,features])
+corrplot(x, type = "upper")
+
+```
+
+
+```{r}
+#Agregar a los artistas y clacular la varianza de los features entre sus temas
+for (i in features){
+
+  z <- aggregate(df_audio_features[, i], by= list(df_audio_features$artist_name), FUN= var)
+  k<- mean(z[,2], na.rm = TRUE) #algo pasa que tira algunos NA. revisar! (y no hay NA en las filas)
+  J <- median(z[,2], na.rm = TRUE) 
+
+  hist(z[,2], main = i)
+  abline(v = k , col="red")
+  abline(v = J , col="blue")
+
+}
+
+
+#Agregar a los album y clacular la varianza de los features entre sus temas
+
+for (i in features){
+
+  z <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_name), FUN= var)
+  k<- mean(z[,2], na.rm = TRUE)
+  J <- median(z[,2], na.rm = TRUE) 
+
+  hist(z[,2], main = i)
+  abline(v = k , col="red")
+  abline(v = J , col="blue")
+
+}
+
+
+for (i in features){
+
+  z <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_release_year), FUN= var)
+  k<- mean(z[,2], na.rm = TRUE)
+  J <- median(z[,2], na.rm = TRUE) 
+
+  hist(z[,2], main = i)
+  abline(v = k , col="red")
+  abline(v = J , col="blue")
+
+}
+
+
+boxplot(df_audio_features[,features],  ylim=c(0,1))
+
+
+        
+        
+```
+
+
+
+
+
+
