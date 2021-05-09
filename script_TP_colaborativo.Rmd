@@ -11,10 +11,6 @@ library(tidyverse)
 library(readxl)
 library(mongolite)
 library(sqldf)
-
-library(read)
-
-
 ```
 
 ```{r}
@@ -38,6 +34,8 @@ df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mi
 #df_charts <- read.csv()
 
 #df_audio_features <- read.csv()
+
+head(df_charts)
 
 ```
 
@@ -104,14 +102,50 @@ for (i in features){
 }
 
 
-boxplot(df_audio_features[,features],  ylim=c(0,1))
+boxplot(scale(df_audio_features[,features]), ylim=c(-5,5))
 
 
-        
-        
+```
+
+```{r}
+
+#espacio de mateo
+
+
 ```
 
 
 
 
 
+<<<<<<< HEAD
+=======
+```{r}
+
+#espacio de nacho
+
+
+```
+
+
+
+
+
+```{r}
+#espacio de igal
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+>>>>>>> 6b28e5e79f4ba92ff9a5a8224a77530a90857d00
