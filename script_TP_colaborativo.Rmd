@@ -67,7 +67,7 @@ for (i in features){
   k<- mean(z[,2], na.rm = TRUE) #algo pasa que tira algunos NA. revisar! (y no hay NA en las filas)
   J <- median(z[,2], na.rm = TRUE) 
 
-  hist(z[,2], main = i)
+  hist(z[,2], main = paste("Histograma de varianza de", i, "(agrupados por artista)"))
   abline(v = k , col="red")
   abline(v = J , col="blue")
 
@@ -82,7 +82,7 @@ for (i in features){
   k<- mean(z[,2], na.rm = TRUE)
   J <- median(z[,2], na.rm = TRUE) 
 
-  hist(z[,2], main = i)
+  hist(z[,2], main = paste("Histograma de varianza de", i, "(agrupados por album)"))
   abline(v = k , col="red")
   abline(v = J , col="blue")
 
@@ -95,7 +95,7 @@ for (i in features){
   k<- mean(z[,2], na.rm = TRUE)
   J <- median(z[,2], na.rm = TRUE) 
 
-  hist(z[,2], main = i)
+  hist(z[,2], main = paste("Histograma de varianza de", i, "(agrupados por año de lanzamiento)"))
   abline(v = k , col="red")
   abline(v = J , col="blue")
 
