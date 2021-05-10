@@ -15,11 +15,11 @@ library(sqldf)
 
 ```{r}
 #dir igal
-df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
-
-df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
-
-df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
+# df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
+# 
+# df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
+# 
+# df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
 
 #dir Nacho
 #df_artist <- read.csv()
@@ -188,8 +188,32 @@ par(mfrow=c(1, 1), mar=c(5, 12, 4, 2) )
 # Y graficamos un solo boxplot con todas las medidas
 # boxplot(df_audio_features_num, horizontal = TRUE, las=1, xlab="z-score")
 boxplot(df_audio_features_filtrado, horizontal = TRUE, las=1, xlab="z-score")
-stripchart(data[,c(3:8)], vertical = FALSE ,
-    method = "jitter", add = TRUE, pch = 20, col = 'blue')
+# stripchart(df_audio_features_filtrado, vertical = FALSE ,
+#     method = "jitter", add = TRUE, pch = 20, col = 'blue')
+```
+
+```{r}
+library(Rlof)
+
+df_audio_features_num$lof_score <- lof(df_audio_features_num, k=3)
+top_lof <- head(df_audio_features_num[order(df_audio_features_num$lof_score,decreasing = TRUE),],4)
+
+print(top_lof)
+```
+
+```{r}
+library(isotree)
+
+#ajusto el modelo
+iforest_sample = isolation.forest(df_audio_features_filtrado, sample_size = 10000, ntrees=100, ndim = 3, random_seed = 13)
+
+#utilzo el metodo predict para calcula el score sobre todos los puntos
+df_audio_features_filtrado$iforest_pred= predict(iforest_sample, df_audio_features_filtrado)
+
+#que paises identifico?
+top_ifores_sample <- head(df_audio_features[order(df_audio_features_filtrado$iforest_pred,
+                                                  decreasing = T),], 10)
+print(top_ifores_sample)
 ```
 
 
