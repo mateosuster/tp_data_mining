@@ -1,1 +1,79 @@
-dsadasd
+TP Data Mining
+
+tareas
+
+VER DETALLE DE FEATURES
+Qué tipo de datos son los features?
+https://developer.spotify.com/documentation/web-api/reference/#object-audiofeaturesobject
+
+PRE-PROCESAMIENTO (LIMPIEZA) E INTEGRACION
+
+VER COMO ES LA TOMA DE DATOS: 
+
+Ver código de API. y Scraping de Charts.
+
+
+
+ERRORES DE CARGA: 
+
+Prestar atención a cosas mal escritas. 
+
+
+
+
+*** Artist
+Buscar bandas que tienen distinto nombre pero son la misma cosa
+
+
+*** Charts 
+Buscar bandas que tienen distinto nombre pero son la misma cosa
+
+
+*** Audio Features
+Las canciones que tenemos en audio features son únicamente las del chart?
+
+
+RUIDO -- una variable aleatoria que genera una variación no deseada en el dataset. 
+
+str(df)
+
+
+
+ANALISIS EXPLORATORIO
+
+
+UNIVARIADO
+OUTLIERS
+
+
+MULTIVARIADO
+
+
+
+DISTRIBUCIONES DE VARIABLES: 
+
+1) Descripción de cada variable (documentación de API Spotify)
+2) analisis univariado por tipo de variable. 
+
+OBSERVAR RELACIONES ENTRE LAS VARIABLES 
+Relaciones entre variables numéricas de audio_features (corrplot)
+Igal: crear variable "Cantidad de Países Disponible","Poblacion Potencial",Ver de Meter variables Economicas.  
+
+Preguntas: 
+¿Qué características tienen las canciones que están en el chart? 
+¿Qué características tienen las bandas que solo una vez se pudieron meter en el ranking? analisis de outliers?
+¿Por país?
+¿Por lengua? 
+¿Qué influencia tiene hacer una canción con un artista (“feat”) que ya estuvo en el chart para lograr ingresar por primera vez en el chart? ¿Influye el hecho de hacer una canción con artistas que ya estuvieron alguna vez en el chart? 
+¿El tono de un tema determina el éxito de una canción? 
+Qué relación se encuentra entre las características generales de un disco y el hit que pertenece a ese disco 
+
+
+
+
+
+
+
+BASE CHARTS
+
+*Ver si las semansa
