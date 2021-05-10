@@ -29,11 +29,11 @@ df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mi
 #df_audio_features <- read.csv()
 
 #dir Mateo
-#df_artist <- read.csv()
+df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
 
-#df_charts <- read.csv()
+df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
 
-#df_audio_features <- read.csv()
+df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 
 head(df_charts)
 
@@ -102,20 +102,80 @@ for (i in features){
 }
 
 
-boxplot(scale(df_audio_features[,features]), ylim=c(-5,5))
+boxplot(scale(df_audio_features[,features]), ylim=c(-5,5), las=3)
 
 
 ```
+
+# Analisis de outliers
+
+##histograma de las variables
+```{r}
+for (i in features){
+
+  hist(df_audio_features[,i], main = paste("Histograma de", i), xlab = i)
+  abline(v = mean(df_audio_features[,i], na.rm = TRUE) , col="red")
+  abline(v = median(df_audio_features[,i], na.rm = TRUE) , col="blue")
+
+}
+```
+
+
+## Metricas de variacion
+```{r}
+#coeficiente de variacion
+cat("coeficiente de variacion\n")
+cv <- round(apply(df_audio_features[,features], 2, statip::cv, na_rm = T),2)
+cv[order(names(cv))]
+
+cat("\ndesvio_standard\n")
+desvio_standard <- round(apply(df_audio_features[,features], 2, sd),2)
+desvio_standard[order(names(desvio_standard))]
+
+```
+
+
+Normalizo los datos con z-score para que sean comparables y los guardo en un nuevo DF
 
 ```{r}
 
-#espacio de mateo
+df_audio_features_num <- df_audio_features[,features]
 
+for(i in 1:ncol(df_audio_features_num)){
+  df_audio_features_num[, i] <- (df_audio_features_num[,i] -
+                                   mean(df_audio_features_num[,i]))/(sd(df_audio_features_num[,i])) }
+
+# Configuramos el tamaño del lienzo (ver "par" del paquete graphics)
+par(mfrow=c(1, 1), mar=c(5, 12, 4, 2) ) 
+
+# Y graficamos un solo boxplot con todas las medidas
+boxplot(df_audio_features[,features],horizontal = TRUE, las=1, xlab="z-score")
+stripchart(data[,c(3:8)], vertical = FALSE ,
+    method = "jitter", add = TRUE, pch = 20, col = 'blue')
+```
+Hay 149,539 temas unicos que superan el bigote superior del boxplot de duration_ms (1.5 veces el RI)
+```{r}
+
+duration.bigote.superior <- boxplot(df_audio_features_num$duration_ms)$stats[5]
+duration.bigote.inferior <- boxplot(df_audio_features_num$duration_ms)$stats[1]
+
+length(unique(df_audio_features["track_id"][(df_audio_features$duration_ms > duration.bigote.superior | 
+                                               df_audio_features$duration_ms < duration.bigote.inferior),]))
+
+length(df_audio_features["track_id"][(df_audio_features$duration_ms > duration.bigote.superior | 
+                                               df_audio_features$duration_ms < duration.bigote.inferior),])
+
+
+length(unique(df_audio_features["artist_name"][df_audio_features$duration_ms < duration.bigote.inferior,]))
+```
+```{r}
+#analisis de z score
+umbral_zscore =3
+df_audio_features[df_audio_features_num$speechiness> umbral_zscore,] %>% 
+  select(album_name,artist_name, speechiness ) %>% 
+  arrange(-speechiness)
 
 ```
-
-
-
 
 
 <<<<<<< HEAD
