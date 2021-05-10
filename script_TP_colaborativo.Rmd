@@ -16,9 +16,9 @@ library(sqldf)
 ```{r}
 #dir igal
 df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
-
+# 
 df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
-
+# 
 df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
 
 #dir Nacho
@@ -29,13 +29,13 @@ df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mi
 #df_audio_features <- read.csv()
 
 #dir Mateo
-#df_artist <- read.csv()
+#df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
 
-#df_charts <- read.csv()
+#df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
 
-#df_audio_features <- read.csv()
+#df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 
-head(df_charts)
+#head(df_charts)
 
 ```
 
@@ -67,7 +67,7 @@ for (i in features){
   k<- mean(z[,2], na.rm = TRUE) #algo pasa que tira algunos NA. revisar! (y no hay NA en las filas)
   J <- median(z[,2], na.rm = TRUE) 
 
-  hist(z[,2], main = i)
+  hist(z[,2], main = paste("Histograma de varianza de", i, "(agrupados por artista)"))
   abline(v = k , col="red")
   abline(v = J , col="blue")
 
@@ -82,7 +82,7 @@ for (i in features){
   k<- mean(z[,2], na.rm = TRUE)
   J <- median(z[,2], na.rm = TRUE) 
 
-  hist(z[,2], main = i)
+  hist(z[,2], main = paste("Histograma de varianza de", i, "(agrupados por album)"))
   abline(v = k , col="red")
   abline(v = J , col="blue")
 
@@ -95,29 +95,142 @@ for (i in features){
   k<- mean(z[,2], na.rm = TRUE)
   J <- median(z[,2], na.rm = TRUE) 
 
-  hist(z[,2], main = i)
+  hist(z[,2], main = paste("Histograma de varianza de", i, "(agrupados por año de lanzamiento)"))
   abline(v = k , col="red")
   abline(v = J , col="blue")
 
 }
 
 
-boxplot(scale(df_audio_features[,features]), ylim=c(-5,5))
+boxplot(scale(df_audio_features[,features]), ylim=c(-5,5), las=3)
 
 
 ```
+
+# Analisis de outliers
+
+##histograma de las variables
+```{r}
+for (i in features){
+
+  hist(df_audio_features[,i], main = paste("Histograma de", i), xlab = i)
+  abline(v = mean(df_audio_features[,i], na.rm = TRUE) , col="red")
+  abline(v = median(df_audio_features[,i], na.rm = TRUE) , col="blue")
+
+}
+```
+
+
+## Metricas de variacion
+```{r}
+#coeficiente de variacion
+cat("coeficiente de variacion\n")
+cv <- round(apply(df_audio_features[,features], 2, statip::cv, na_rm = T),2)
+cv[order(names(cv))]
+
+cat("\ndesvio_standard\n")
+desvio_standard <- round(apply(df_audio_features[,features], 2, sd),2)
+desvio_standard[order(names(desvio_standard))]
+
+```
+
+
+Normalizo los datos con z-score para que sean comparables y los guardo en un nuevo DF
 
 ```{r}
 
-#espacio de mateo
+#filtro features numericos
+df_audio_features_num <- df_audio_features[,features]
 
+#normalizo z score
+for(i in 1:ncol(df_audio_features_num)){
+  df_audio_features_num[, i] <- (df_audio_features_num[,i] -
+                                   mean(df_audio_features_num[,i]))/(sd(df_audio_features_num[,i])) }
 
 ```
 
 
+Hay 149,539 temas unicos que superan el bigote superior del boxplot de duration_ms (1.5 veces el RI)
+```{r}
+#calculo bigotes para la variable duration
+duration.bigote.superior <- boxplot(df_audio_features_num$duration_ms)$stats[5]
+duration.bigote.inferior <- boxplot(df_audio_features_num$duration_ms)$stats[1]
+
+#observo cuantos temas unicos superan el bigote
+length(unique(df_audio_features["track_id"][(df_audio_features$duration_ms > duration.bigote.superior | 
+                                               df_audio_features$duration_ms < duration.bigote.inferior),]))
+
+#cuanto temas superan el bigote
+length(df_audio_features["track_id"][(df_audio_features$duration_ms > duration.bigote.superior | 
+                                               df_audio_features$duration_ms < duration.bigote.inferior),])
+#cuantos artistas
+length(unique(df_audio_features["artist_name"][df_audio_features$duration_ms < duration.bigote.inferior,]))
+```
+```{r}
+#observo nuevo boxplot con outliers filtados de duration_ms
+boxplot(df_audio_features_num["duration_ms"][df_audio_features_num["duration_ms"] <= duration.bigote.superior ])
+
+#calculo umbral para loudness
+loudness.bigote.inferior <- boxplot(df_audio_features_num$loudness)$stats[1]
+
+#guardo nuevo dataset filtrado (nro instancias 140k, perdemos 16k registros )
+df_audio_features_filtrado <- df_audio_features_num %>% 
+  filter(duration_ms <= duration.bigote.superior &
+         loudness >= loudness.bigote.inferior)
+
+```
+
+
+```{r}
+# Configuramos el tamaño del lienzo (ver "par" del paquete graphics)
+par(mfrow=c(1, 1), mar=c(5, 12, 4, 2) ) 
+
+# Y graficamos un solo boxplot con todas las medidas
+# boxplot(df_audio_features_num, horizontal = TRUE, las=1, xlab="z-score")
+boxplot(df_audio_features_filtrado, horizontal = TRUE, las=1, xlab="z-score")
+# stripchart(df_audio_features_filtrado, vertical = FALSE ,
+#     method = "jitter", add = TRUE, pch = 20, col = 'blue')
+```
+
+```{r}
+library(Rlof)
+
+df_audio_features_num$lof_score <- lof(df_audio_features_num, k=3)
+top_lof <- head(df_audio_features_num[order(df_audio_features_num$lof_score,decreasing = TRUE),],4)
+
+print(top_lof)
+```
+
+```{r}
+library(isotree)
+
+#ajusto el modelo
+iforest_sample = isolation.forest(df_audio_features_filtrado, sample_size = 10000, ntrees=100, ndim = 3, random_seed = 13)
+
+#utilzo el metodo predict para calcula el score sobre todos los puntos
+df_audio_features_filtrado$iforest_pred= predict(iforest_sample, df_audio_features_filtrado)
+
+#que paises identifico?
+top_ifores_sample <- head(df_audio_features[order(df_audio_features_filtrado$iforest_pred,
+                                                  decreasing = T),], 10)
+print(top_ifores_sample)
+```
 
 
 
+```{r}
+#analisis de z score
+#variable: speechiness
+umbral_zscore =3
+df_audio_features[df_audio_features_num$speechiness> umbral_zscore,] %>% 
+  select(album_name,artist_name, speechiness ) %>% 
+  arrange(-speechiness)
+
+```
+
+
+<<<<<<< HEAD
+=======
 ```{r}
 
 #espacio de nacho
@@ -146,3 +259,4 @@ boxplot(scale(df_audio_features[,features]), ylim=c(-5,5))
 
 
 
+>>>>>>> 6b28e5e79f4ba92ff9a5a8224a77530a90857d00

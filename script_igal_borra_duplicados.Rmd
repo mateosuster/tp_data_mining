@@ -5,18 +5,27 @@ output: html_notebook
 
 
 ```{r}
+install.packages("mice")
 library(corrplot)
 library(ggplot2)
 library(tidyverse)
 library(readxl)
 library(mongolite)
 library(sqldf)
+library(VIM)
+library(mice)
+
 ```
 
 ```{r}
 #cargo las bases
 audio_features <- mongo(collection = "audio_features", db = "spotify_dm")
 df_audio_features <- audio_features$find()
+
+#faltantes = summary(aggr(df_audio_features, sortVar=TRUE, plot=T))
+#print(faltantes$combinations)
+#md.pattern(df_audio_features, rotate.names=TRUE)
+
 
 artist <- mongo(collection = "artist", db = "spotify_dm")
 df_artist <- artist$find()
