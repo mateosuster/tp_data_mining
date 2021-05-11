@@ -16,6 +16,8 @@ library(sqldf)
 ```{r}
 #dir igal
 df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
+
+head(df_audio_features)
 # 
 df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
 # 
@@ -39,7 +41,22 @@ df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mi
 
 ```
 
+```{r}
 
+#Armamos un join para tener una tabla de charts con las caracteristicas de las canciones
+
+join_audio_artist <- df_audio_features %>% 
+  select("artist_name", "track_name", features, "markets_concat") %>% 
+  right_join( df_charts %>%
+               select( "Track_Name", "Artist", 
+                       "Position", "Streams", "week_start", "week_end") %>%
+               group_by(Track_Name, Artist), #%>% 
+               # summarise(avg_position = mean(Position, na.rm=T)),
+              by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
+
+head(join_audio_artist)
+
+```
 
 
 
@@ -66,28 +83,52 @@ for(i in features_categoricas){
   # pie(table(df_features_categoricos[,i]))
 }
 
-for (i in nrow(df_audio_features)){
-df_audio_features$cant_markets <- length(unlist(strsplit(df_audio_features[i,"markets_concat"], split = ",")))
-}
+
+#cantidad de paises donde está disponible cada canción
+
+contar_market <- function(x){
+q <- length(unlist(strsplit(x, split = ",")))
+return (q)
+  }
+df_audio_features$cant_markets <- sapply(df_audio_features[,"markets_concat"], contar_market)
+
+summary(df_audio_features$cant_markets)
+hist(df_audio_features$cant_markets)
+boxplot(df_audio_features$cant_markets, horizontal = TRUE) #hay canciones en cero países.
+
+df_audio_features[df_audio_features$cant_markets==0,]
 
 
-sapply(df_audio_features[,"artists"], concat_column)
+
+#cantidad de paises donde está disponible cada canción del chart
+
+contar_market <- function(x){
+q <- length(unlist(strsplit(x, split = ",")))
+return (q)
+  }
+
+join_audio_artist$cant_markets <- sapply(join_audio_artist[,"markets_concat"], contar_market)
 
 
-vector <- unlist(strsplit(df_audio_features[1,"markets_concat"], split = ","))
-x <- table (vector)
+summary(join_audio_artist$cant_markets)
+hist(join_audio_artist$cant_markets)
+boxplot(join_audio_artist$cant_markets, horizontal = TRUE) #hay canciones en cero países.
 
-x <- sort(x)
+join_audio_artist[join_audio_artist$cant_markets==0,]
 
-barplot(x, las=2)
+
+
+
+
+# cantidad de veces que aparece cada país (lo sacamos porque na da nada interpretable)
+#vector <- unlist(strsplit(df_audio_features[1,"markets_concat"], split = ","))
+#x <- table (vector)
+#x <- sort(x)
+#barplot(x, las=2)
 ```
 
 
 ```{r}
-
-
-
-
 summary(df_audio_features[, features_continuas])
 
 for (i in features_continuas){
@@ -112,21 +153,7 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "albu
 ```
 
 
-```{r}
 
-join
-
-join_audio_artist <- df_audio_features %>% 
-  select("artist_name", "track_name", features) %>% 
-  right_join( df_charts %>%
-               select( "Track_Name", "Artist", 
-                       "Position", "Streams", "week_start", "week_end") %>%
-               group_by(Track_Name, Artist), #%>% 
-               # summarise(avg_position = mean(Position, na.rm=T)),
-              by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
-
-
-```
 
 
 
