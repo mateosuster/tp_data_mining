@@ -1,5 +1,5 @@
 TP Data Mining
-
+https://docs.google.com/document/d/19tqccoHNJT381hSEOmPZ7Moq-z7fEVn8dZnatuvWCV0/edit#
 tareas
 
 VER DETALLE DE FEATURES
@@ -58,6 +58,23 @@ DISTRIBUCIONES DE VARIABLES:
 OBSERVAR RELACIONES ENTRE LAS VARIABLES 
 Relaciones entre variables numéricas de audio_features (corrplot)
 Igal: crear variable "Cantidad de Países Disponible","Poblacion Potencial",Ver de Meter variables Economicas.  
+
+Preguntas nuevas
+¿Qué características tienen las canciones que están en el chart? ¿Cual es el patrón comun que tienen las canciones más escuchadas? (ver dispersiones, media, grafico comparativo)
+¿Qué características tienen las bandas que solo una vez se pudieron meter en el ranking? analisis de outliers?
+Temas que perduran mucho en el chart ¿cuáles son las características? 
+¿Cuánto tiempo tardan los temas en entrar en el chart? ¿Cuanto tarda en alcanzar su pico? 
+¿Cuánto tiempo están en un chart? 
+¿Por país?
+¿Por lengua? 
+¿Qué influencia tiene hacer una canción con un artista (“feat”) que ya estuvo en el chart para lograr ingresar por primera vez en el chart? ¿Influye el hecho de hacer una canción con artistas que ya estuvieron alguna vez en el chart? 
+¿El tono de un tema determina el éxito de una canción? 
+Qué relación se encuentra entre las características generales de un disco y el hit que pertenece a ese disco 
+
+
+
+
+
 
 Preguntas: 
 ¿Qué características tienen las canciones que están en el chart? 
