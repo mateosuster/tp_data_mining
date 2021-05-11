@@ -65,20 +65,23 @@ for(i in features_categoricos){
 
 
 ## Correlacion entre variables categóricas
+
 ```{r}
-
-chisq.test(table(df_audio_features$key_name, df_audio_features$mode_name))
-
-chisq.test(df_audio_features$key, df_audio_features$mode)
-chisq.test(df_audio_features$key, df_audio_features$album_type)
-chisq.test(df_audio_features$key_mode, df_audio_features$album_type)
-chisq.test(df_audio_features$key_mode, df_audio_features$explicit)
-
+tabla_key_album <- table(df_audio_features$key_name, df_audio_features$album_type)
+cat("Tabla de contigencia entre key y album type\n")
+tabla_key_album
+chisq.test(tabla_key_mode)
 
 ```
 Se observan valores altos del test chi cuadrado, por lo que se puede rechazar la H0 (variables categoricas independientes) y afirmar la dependencia de las variables
 
+```{r}
+tabla_key_mode <- table(df_audio_features$explicit, df_audio_features$album_type)
+cat("Tabla de contigencia entre key y album type\n")
+tabla_key_mode
+chisq.test(tabla_key_mode)
 
+```
 
 
 
@@ -94,13 +97,15 @@ join_audio_artist <- df_audio_features %>%
 
 ```{r}
 join_audio_artist <- df_charts %>%
-  select( "Track_Name", "Artist" ) %>% 
-        # "Position", "Streams", "week_start", "week_end"), 
-  # distinct() %>% 
+  select( "Track_Name", "Artist", "URL", "Position", "Streams", "week_start", "week_end") %>%  
+  # distinct() %>%
   left_join( df_audio_features %>%
-                select("artist_name", "track_name", features_num, features_categoricos), 
-              by = c( "Track_Name" ="track_name" , "Artist" ="artist_name"  ))
-nrow(join_audio_artist)
+                select("artist_name", "track_name", "external_urls_spotify", features_num, features_categoricos), 
+              by = c( "URL"= "external_urls_spotify"  )) 
+join_audio_artist
+
+# glimpse(df_audio_features)
+# glimpse(df_charts)
 ```
 
 
@@ -127,7 +132,10 @@ print(faltantes$combinations)
 ```
 
 
+## Patron Comun Canciones del Chart
+
 ```{r}
+# Histograma con variables escaladas 
 join_audio_artist_complete <- na.omit(join_audio_artist)
 nrow(join_audio_artist_complete)
 
@@ -138,22 +146,28 @@ nrow(join_audio_artist_complete %>%
   select(artist_name, track_name,features_num) %>% 
   distinct())
 
+
+#normalizo z score
+scale_vble <- function(x){
+  (x - mean(x, na.rm = T))/sd(x, na.rm = T)
+}
+
 join_audio_artist_complete %>%
   select(features_num) %>% 
+  mutate_all(scale_vble) %>% 
   mutate(is_chart = "chart") %>%
   rbind(df_audio_features_complete %>% 
-          select(features_num) %>% 
-          mutate(is_chart= "all")) %>% 
+          select(features_num) %>%
+          mutate_all(scale_vble) %>%
+          mutate(is_chart= "all")) %>%
   gather(key = variable, value = valor, 1:10) %>% 
+  filter(!(variable %in% c("instrumentalness", "speechiness" )) ) %>%
   ggplot( aes(valor, fill = is_chart))+ 
   geom_density(alpha = 0.2)+
-  facet_wrap(~variable)
+  facet_wrap(~variable, ncol=2)
   
   
 ```
-
-## Patron Comun Canciones del Chart
-
 
 
 
