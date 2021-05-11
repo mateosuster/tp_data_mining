@@ -17,13 +17,13 @@ library(Rlof)
 
 ```{r}
 #dir igal
-df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
-
-head(df_audio_features)
+# df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
 # 
-df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
-# 
-df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
+# head(df_audio_features)
+# # 
+# df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
+# # 
+# df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
 
 #dir Nacho
 #df_artist <- read.csv()
@@ -33,11 +33,9 @@ df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mi
 #df_audio_features <- read.csv()
 
 #dir Mateo
-#df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
-
-#df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
-
-#df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
+df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
+df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
+df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 
 #head(df_charts)
 
@@ -80,8 +78,7 @@ join_audio_charts <- df_audio_features %>%
                        "Position", "Streams", "week_start", "week_end"),
                by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
 
-
-head(join_audio_charts)
+glimpse(join_audio_charts)
 ```
 
 
@@ -91,26 +88,24 @@ head(join_audio_charts)
 
 for (i in features_continuas){
 
-  hist(df_audio_features[,i], main = paste("Histograma de", i), xlab = i)
+  hist(df_audio_features[,i], main = paste("Histograma de", i, "(all data)"), xlab = i)
   abline(v = mean(df_audio_features[,i], na.rm = TRUE) , col="red")
   abline(v = median(df_audio_features[,i], na.rm = TRUE) , col="blue")
+  legend("topright", legend = c("Media", "Mediana"), col=c("red", "blue"), lty =1)
 
 }
 
 ##histograma de las variables continuas de charts
 for (i in c(features_continuas, "Streams")){
 
-  hist(join_audio_charts[,i], main = paste("Histograma de", i), xlab = i)
+  hist(join_audio_charts[,i], main = paste("Histograma de", i,  "(charts)"), xlab = i)
   abline(v = mean(join_audio_charts[,i], na.rm = TRUE) , col="red")
   abline(v = median(join_audio_charts[,i], na.rm = TRUE) , col="blue")
 
 }
 
-c(features_continuas, "Streams")
 
-##barplot de las variables categoricas audio_features
-summary(df_audio_features[,features_categoricas])
-table(df_audio_features$album_type)
+##medidas resumen y barplots de las variables categoricas audio_features
 for(i in features_categoricas){
   print(i)
   barplot(sort(table(df_audio_features[,i]),decreasing = T), main = i, las=2)
@@ -126,7 +121,7 @@ for(i in features_categoricas){
 
 
 ```{r}
-#análisis de correlación
+#análisis de correlación numericas
 
 x <- cor(df_audio_features[,features_continuas])
 corrplot(x, type = "upper")
@@ -135,7 +130,10 @@ x <- cor(join_audio_charts[,features_continuas])
 corrplot(x, type = "upper")
 
 #agrafar chi2 test
-
+tabla_key_album <- table(df_audio_features$key_name, df_audio_features$album_type)
+cat("Tabla de contigencia entre key y album type\n")
+tabla_key_album
+chisq.test(tabla_key_mode)
 
 ```
 
@@ -210,7 +208,6 @@ umbral_zscore =3
 df_audio_features[df_audio_features_num$speechiness> umbral_zscore,] %>% 
   select(album_name,artist_name, speechiness ) %>% 
   arrange(-speechiness)
-
 #falta z score con mediana
 
 ```
