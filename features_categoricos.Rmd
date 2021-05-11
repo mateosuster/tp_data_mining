@@ -21,6 +21,9 @@ df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
 df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
 
 df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
+
+nrow(df_charts)
+nrow(df_audio_features)
 ```
 
 
@@ -81,23 +84,32 @@ Se observan valores altos del test chi cuadrado, por lo que se puede rechazar la
 
 ## Join Charts y Audio Features
 ```{r}
-
-
 join_audio_artist <- df_audio_features %>% 
   select("artist_name", "track_name", features_num, features_categoricos) %>% 
   right_join( df_charts %>%
-               select( "Track_Name", "Artist", 
-                       "Position", "Streams", "week_start", "week_end") %>%
-               group_by(Track_Name, Artist),
+               select( "Track_Name", "Artist" ), 
+                      # "Position", "Streams", "week_start", "week_end"),
               by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
-glimpse(join_audio_artist)
 ```
+
+```{r}
+join_audio_artist <- df_charts %>%
+  select( "Track_Name", "Artist" ) %>% 
+        # "Position", "Streams", "week_start", "week_end"), 
+  # distinct() %>% 
+  left_join( df_audio_features %>%
+                select("artist_name", "track_name", features_num, features_categoricos), 
+              by = c( "Track_Name" ="track_name" , "Artist" ="artist_name"  ))
+nrow(join_audio_artist)
+```
+
+
 ## Analisis de NA's de Audio Feature
 ```{r}
 sum(is.na(join_audio_artist))
 sum(!complete.cases(join_audio_artist))
 
-Ssum(is.na(df_audio_features))
+sum(is.na(df_audio_features))
 sum(is.na(df_charts))
 ```
 
@@ -118,6 +130,26 @@ print(faltantes$combinations)
 ```{r}
 join_audio_artist_complete <- na.omit(join_audio_artist)
 nrow(join_audio_artist_complete)
+
+df_audio_features_complete <- na.omit(df_audio_features)
+nrow(df_audio_features_complete)
+  
+nrow(join_audio_artist_complete %>% 
+  select(artist_name, track_name,features_num) %>% 
+  distinct())
+
+join_audio_artist_complete %>%
+  select(features_num) %>% 
+  mutate(is_chart = "chart") %>%
+  rbind(df_audio_features_complete %>% 
+          select(features_num) %>% 
+          mutate(is_chart= "all")) %>% 
+  gather(key = variable, value = valor, 1:10) %>% 
+  ggplot( aes(valor, fill = is_chart))+ 
+  geom_density(alpha = 0.2)+
+  facet_wrap(~variable)
+  
+  
 ```
 
 ## Patron Comun Canciones del Chart
