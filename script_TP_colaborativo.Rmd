@@ -18,13 +18,13 @@ library(lubridate)
 # Carga de bases
 ```{r}
 #dir igal
-# df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
+ df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
 # 
-# head(df_audio_features)
+
 # # 
-# df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
+ df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
 # # 
-# df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
+ df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
 
 #dir Nacho
 #df_artist <- read.csv()
@@ -34,9 +34,9 @@ library(lubridate)
 #df_audio_features <- read.csv()
 
 #dir Mateo
-df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
-df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
-df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
+#df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
+#df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
+#df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 
 
 #filtro NA
@@ -44,7 +44,6 @@ df_audio_features <-na.omit(df_audio_features) %>%
   distinct()
 df_charts <-na.omit(df_charts) %>% 
   distinct()
-
 
 
 ```
@@ -106,7 +105,7 @@ join_audio_charts <- df_audio_features %>%
 sum(!complete.cases(join_audio_charts))
 sum(complete.cases(join_audio_charts))
 
-### ELIMINO NAAA
+### ELIMINO NA
 join_audio_charts <- na.omit(join_audio_charts)
 
 # glimpse(join_audio_charts)
@@ -126,6 +125,12 @@ for (i in features_continuas){
 
 }
 
+#divido los features por su distribución
+features_continuas_media <- c('danceability', 'tempo', 'valence', 'cant_markets')
+
+features_continuas_mediana <- c('acousticness', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness', 'cant_markets')
+
+
 ##histograma de las variables continuas de charts
 for (i in c(features_continuas, "Streams")){
 
@@ -134,6 +139,11 @@ for (i in c(features_continuas, "Streams")){
   abline(v = median(join_audio_charts[,i], na.rm = TRUE) , col="blue")
 
 }
+
+#divido features de charts según su distribución
+audio_charts_continuas_media <- c('danceability', 'duration_ms', 'valence', 'cant_markets')
+
+audio_charts_continuas_mediana <- c('acousticness', 'tempo', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness', 'cant_markets', "Streams")
 
 
 ##medidas resumen y barplots de las variables categoricas audio_features
@@ -149,16 +159,21 @@ for(i in features_categoricas){
 #x <- table (vector)
 #x <- sort(x)
 #barplot(x, las=2)
+
+
+
 ```
 
 # Correlaciones
 ```{r}
 #análisis de correlación numericas
 
-x <- cor(df_audio_features[,features_continuas],  use =  "complete.obs")
+#correlaciones en audio features
+x <- cor(df_audio_features[,c(features_continuas_media, features_continuas_mediana)],  use =  "complete.obs")
 corrplot(x, type = "upper", title = "Correlacion de atributos de audio", mar=c(0,0,1,0) )
 
-x <- cor(join_audio_charts[,c(features_continuas, "Streams", "Position")], use =  "complete.obs")
+#correlaciones en charts
+x <- cor(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], use =  "complete.obs")
 corrplot(x, type = "upper", title = "Correlacion de atributos de los Charts", mar=c(0,0,1,0) )
 
 #chi2 test
@@ -176,13 +191,24 @@ chisq.test(tabla_key_album)
 #Outlier univariado
 
 ## Metricas de variacion
-#coeficiente de variacion
+
+#coeficiente de variacion audio_features
 cat("coeficiente de variacion\n")
-cv <- round(apply(df_audio_features[,features_continuas], 2, statip::cv, na_rm = T),2)
+cv <- round(apply(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], 2, statip::cv, na_rm = T),2)
 sort(cv, decreasing = T)
 
 cat("\ndesvio_standard\n")
-desvio_standard <- round(apply(df_audio_features[,features_continuas], 2, sd),2)
+desvio_standard <- round(apply(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], 2, sd),2)
+desvio_standard[order(names(desvio_standard))]
+
+
+#coeficiente de variacion charts
+cat("coeficiente de variacion\n")
+cv <- round(apply(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], 2, statip::cv, na_rm = T),2)
+sort(cv, decreasing = T)
+
+cat("\ndesvio_standard\n")
+desvio_standard <- round(apply(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], 2, sd, na.rm=TRUE),2)
 desvio_standard[order(names(desvio_standard))]
 
 ```
@@ -218,29 +244,33 @@ df_audio_features_filtrado <- df_audio_features %>%
 ```
 
 
-
-
-
 ## Normalizacion con z-score 
 Para que sean comparables y los guardo en un nuevo DF
 
 ```{r}
-#método 2: z-score
-#filtro features numericos
-df_audio_features_scale <- df_audio_features_filtrado[,features_continuas]
+#método 2: z-score para var que tienden a la normal
+#filtro features numericos 
+df_audio_features_zscore_media <- df_audio_features[,features_continuas_media]
 
-#normalizo z score
-for(i in 1:ncol(df_audio_features_scale)){
-  df_audio_features_scale[, i] <- (df_audio_features_scale[,i] -
-                                   mean(df_audio_features_scale[,i]))/(sd(df_audio_features_scale[,i])) }
+#normalizo z score con las variables que tienden a la normal
+for(i in 1:ncol(df_audio_features_zscore_media)){
+  df_audio_features_zscore_media[, i] <- (df_audio_features_zscore_media[,i] -
+                                   mean(df_audio_features_zscore_media[,i]))/(sd(df_audio_features_zscore_media[,i])) }
+
+#normalizo z score modificado las variables que NO tienden a la normal
+
 
 #analisis de z score
 #variable: speechiness
-umbral_zscore =3
-df_audio_features[df_audio_features_scale$speechiness> umbral_zscore,] %>% 
+umbral_zscore = 3
+df_audio_features[df_audio_features_zscore_media$speechiness> umbral_zscore,] %>% 
   select(album_name,artist_name, speechiness ) %>% 
   arrange(-speechiness)
 #falta z score con mediana
+
+
+
+
 
 ```
 
@@ -254,6 +284,7 @@ par(mfrow=c(1, 1), mar=c(5, 12, 4, 2) )
 # boxplot(df_audio_features_scale, horizontal = TRUE, las=1, xlab="z-score")
 boxplot(df_audio_features_scale, horizontal = TRUE, las=1, xlab="z-score")
 ```
+
 ## LOF
 
 ```{r}
@@ -286,7 +317,17 @@ print(top_ifores_sample)
 
 #método 3: mahalanobis
 
+#audio_features
+df_audio_features_mahala <- df_audio_features
+vector_medias = colMeans(df_audio_features_mahala[,features_continuas]) 
+matriz_var_cov = cov(df_audio_features_mahala[,features_continuas])
 
+# Creamos una variable con la distancia
+df_audio_features_mahala$maha = sqrt(mahalanobis(df_audio_features_mahala[,features_continuas],vector_medias,matriz_var_cov))
+
+# Los registros mas distantes. criterio del bastón partido
+top_maha <- head(df_audio_features_mahala[order(df_audio_features_mahala$maha,decreasing = TRUE),],300)
+plot(top_maha$maha) #se observa que las distancias se achican mucho a partir de las 85 más distantes al centro
 
 
 
@@ -490,5 +531,5 @@ boxplot(scale(df_audio_features[,features_continuas]), ylim=c(-5,5), las=3)
 
 ```
 
-```
+
 
