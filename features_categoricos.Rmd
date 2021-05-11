@@ -135,22 +135,31 @@ print(faltantes$combinations)
 ## Patron Comun Canciones del Chart
 
 ```{r}
-# Histograma con variables escaladas 
-join_audio_artist_complete <- na.omit(join_audio_artist)
-nrow(join_audio_artist_complete)
-
-df_audio_features_complete <- na.omit(df_audio_features)
-nrow(df_audio_features_complete)
-  
-nrow(join_audio_artist_complete %>% 
-  select(artist_name, track_name,features_num) %>% 
-  distinct())
-
-
-#normalizo z score
+#funcion nomaliza z score
 scale_vble <- function(x){
   (x - mean(x, na.rm = T))/sd(x, na.rm = T)
 }
+
+# Histograma con variables escaladas 
+join_audio_artist_complete <- na.omit(join_audio_artist)
+join_audio_artist_complete_scale <- scale(join_audio_artist_complete %>% select(features_num) )
+nrow(join_audio_artist_complete)
+
+df_audio_features_complete <- na.omit(df_audio_features)
+df_audio_features_complete_scale <- scale(df_audio_features_complete %>%  select(features_num) )
+nrow(df_audio_features_complete)
+  
+
+
+plot(density(join_audio_artist_complete_scale[,"danceability"]), main = "Histograma de danceabilty")
+plot(density(df_audio_features_complete_scale[,"danceability"]), main = "Histograma de danceabilty")
+lines(density(df_audio_features_complete_scale[,"danceability "]))
+```
+
+```{r}
+nrow(join_audio_artist_complete %>% 
+  select(artist_name, track_name,features_num) %>% 
+  distinct())
 
 join_audio_artist_complete %>%
   select(features_num) %>% 
@@ -161,14 +170,32 @@ join_audio_artist_complete %>%
           mutate_all(scale_vble) %>%
           mutate(is_chart= "all")) %>%
   gather(key = variable, value = valor, 1:10) %>% 
-  filter(!(variable %in% c("instrumentalness", "speechiness" )) ) %>%
+  # filter(!(variable %in% c("instrumentalness", "speechiness" )) ) %>%
+  filter(variable== "danceability" ) %>%
   ggplot( aes(valor, fill = is_chart))+ 
-  geom_density(alpha = 0.2)+
-  facet_wrap(~variable, ncol=2)
-  
-  
+  geom_density(alpha = 0.2)#+
+  # facet_wrap(~variable, ncol=2)
 ```
 
+
+```{r}
+for(i in features_num){
+join_audio_artist_complete %>%
+  select(features_num) %>% 
+  mutate_all(scale_vble) %>% 
+  mutate(is_chart = "chart") %>%
+  rbind(df_audio_features_complete %>% 
+          select(features_num) %>%
+          mutate_all(scale_vble) %>%
+          mutate(is_chart= "all")) %>%
+  gather(key = variable, value = valor, 1:10) %>% 
+  # filter(!(variable %in% c("instrumentalness", "speechiness" )) ) %>%
+  filter(variable  == i) %>%
+  ggplot( aes(valor, fill = is_chart))+ 
+  geom_density(alpha = 0.2)#+
+  # facet_wrap(~variable, ncol=2)
+}  
+```
 
 
 ## Atributos de audio a analizar
