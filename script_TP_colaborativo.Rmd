@@ -101,8 +101,14 @@ join_audio_charts <- df_audio_features %>%
                by  = c("external_urls_spotify" = "URL"))
                # by = "artist_track")
                # by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
+
+#Num de instancias con NA
 sum(!complete.cases(join_audio_charts))
 sum(complete.cases(join_audio_charts))
+
+### ELIMINO NAAA
+join_audio_charts <- na.omit(join_audio_charts)
+
 # glimpse(join_audio_charts)
 ```
 
@@ -363,29 +369,7 @@ for (i in features_continuas) {
 
 ```
 
-
-```{r}
-for (i in features_continuas) {
-  print(join_audio_charts_complete_scale %>%
-            mutate(is_chart = "chart") %>%
-            rbind(anti_join_audio_charts_complete_scale %>%
-              mutate(is_chart= "no_chart")) %>%
-            # rbind(df_audio_features_complete_scale %>%
-              # mutate(is_chart= "all")) %>%
-            gather(key = variable, value = valor, 1:11) %>% 
-            filter(variable== i ) %>%
-              ggplot( aes(valor, color = is_chart))+
-                labs(title = paste("histograma de", i),
-                     subtitle = "Comparacion temas de chart vs no-chart")+
-                geom_point(alpha = 0.2)) 
-}
-```
-
-
-## Qué temas perduran mucho en el ranking
-
-
-
+Intento de hacer los histogramas de densidad con facete wrap PERO NO FUNCÓ !
 ```{r}
 join_audio_charts_complete_scale %>%
   mutate(is_chart = "chart") %>%
@@ -410,6 +394,49 @@ join_audio_charts_complete_scale %>%
   geom_density(alpha = 0.2)+
   facet_wrap(~variable, ncol=3)
   # facet_grid(variable~., space="free")
+```
+
+
+### Comparacion de medias
+```{r}
+media_no_chart = apply(anti_join_audio_charts_complete_scale,2, FUN = mean )
+media_chart =apply(join_audio_charts_complete_scale,2, FUN = mean )
+
+data.frame(media_chart, media_no_chart) %>% 
+  mutate(dif = ((media_chart/ media_no_chart)-1)*100)
+
+```
+
+
+### Comparación de Coef de Var
+```{r}
+cv_no_chart = apply(anti_join_audio_charts_complete_scale,2, FUN =statip::cv )
+cv_chart =apply(join_audio_charts_complete_scale,2, FUN = statip::cv )
+
+data.frame(cv_chart, cv_no_chart) %>% 
+  mutate(dif = ((cv_chart/ cv_no_chart)-1)*100)
+
+```
+
+
+## Qué temas perduran mucho en el ranking
+
+### Artistas que mas aparecen en el chart
+```{r}
+join_audio_charts %>% 
+  group_by(artist_name) %>% 
+  summarise(n = n()) %>% 
+  arrange(-n)
+```
+
+### Tracks que mas aparecen en el chart
+```{r}
+join_audio_charts %>% 
+  group_by(track_name, artist_name,external_urls_spotify) %>% 
+  summarise(n = n()) %>% 
+  arrange(-n) %>% 
+  select(track_name, n, everything(.))
+
 ```
 
 
