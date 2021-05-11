@@ -40,28 +40,100 @@ df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mi
 ```
 
 
+
+
+
 ```{r}
 
-#features var_ continuos
-features <- c('acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness',   'tempo', 'valence')
+##histograma de las variables continuas
+
+for (i in features_continuas){
+
+  hist(df_audio_features[,i], main = paste("Histograma de", i), xlab = i)
+  abline(v = mean(df_audio_features[,i], na.rm = TRUE) , col="red")
+  abline(v = median(df_audio_features[,i], na.rm = TRUE) , col="blue")
+
+}
+
+##barplot de las variables categoricas
+summary(df_audio_features[,features_categoricas])
+
+table(df_audio_features$album_type)
+
+for(i in features_categoricas){
+  print(i)
+  barplot(sort(table(df_audio_features[,i]),decreasing = T), main = i, las=2)
+  # pie(table(df_features_categoricos[,i]))
+}
+
+for (i in nrow(df_audio_features)){
+df_audio_features$cant_markets <- length(unlist(strsplit(df_audio_features[i,"markets_concat"], split = ",")))
+}
 
 
-summary(df_audio_features[, features])
+sapply(df_audio_features[,"artists"], concat_column)
 
-for (i in features){
+
+vector <- unlist(strsplit(df_audio_features[1,"markets_concat"], split = ","))
+x <- table (vector)
+
+x <- sort(x)
+
+barplot(x, las=2)
+```
+
+
+```{r}
+
+
+
+
+summary(df_audio_features[, features_continuas])
+
+for (i in features_continuas){
   hist(df_audio_features[, i], main= i)
 
 }
 
-x <- cor(df_audio_features[,features])
+x <- cor(df_audio_features[,features_continuas])
 corrplot(x, type = "upper")
+
+```
+
+# Analisis de outliers
+```{r}
+#features var continuos
+features_continuas <- c('acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness',   'tempo', 'valence')
+
+#features var_ categóricas
+features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "album_type", "markets_concat", "artist_concat")
+
 
 ```
 
 
 ```{r}
+
+join
+
+join_audio_artist <- df_audio_features %>% 
+  select("artist_name", "track_name", features) %>% 
+  right_join( df_charts %>%
+               select( "Track_Name", "Artist", 
+                       "Position", "Streams", "week_start", "week_end") %>%
+               group_by(Track_Name, Artist), #%>% 
+               # summarise(avg_position = mean(Position, na.rm=T)),
+              by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
+
+
+```
+
+
+
+
+```{r}
 #Agregar a los artistas y clacular la varianza de los features entre sus temas
-for (i in features){
+for (i in features_continuas){
 
   z <- aggregate(df_audio_features[, i], by= list(df_audio_features$artist_name), FUN= var)
   k<- mean(z[,2], na.rm = TRUE) #algo pasa que tira algunos NA. revisar! (y no hay NA en las filas)
@@ -76,7 +148,7 @@ for (i in features){
 
 #Agregar a los album y clacular la varianza de los features entre sus temas
 
-for (i in features){
+for (i in features_continuas){
 
   z <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_name), FUN= var)
   k<- mean(z[,2], na.rm = TRUE)
@@ -89,7 +161,7 @@ for (i in features){
 }
 
 
-for (i in features){
+for (i in features_continuas){
 
   z <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_release_year), FUN= var)
   k<- mean(z[,2], na.rm = TRUE)
@@ -102,34 +174,23 @@ for (i in features){
 }
 
 
-boxplot(scale(df_audio_features[,features]), ylim=c(-5,5), las=3)
+boxplot(scale(df_audio_features[,features_continuas]), ylim=c(-5,5), las=3)
 
 
 ```
 
-# Analisis de outliers
 
-##histograma de las variables
-```{r}
-for (i in features){
-
-  hist(df_audio_features[,i], main = paste("Histograma de", i), xlab = i)
-  abline(v = mean(df_audio_features[,i], na.rm = TRUE) , col="red")
-  abline(v = median(df_audio_features[,i], na.rm = TRUE) , col="blue")
-
-}
-```
 
 
 ## Metricas de variacion
 ```{r}
 #coeficiente de variacion
 cat("coeficiente de variacion\n")
-cv <- round(apply(df_audio_features[,features], 2, statip::cv, na_rm = T),2)
+cv <- round(apply(df_audio_features[,features_continuas], 2, statip::cv, na_rm = T),2)
 cv[order(names(cv))]
 
 cat("\ndesvio_standard\n")
-desvio_standard <- round(apply(df_audio_features[,features], 2, sd),2)
+desvio_standard <- round(apply(df_audio_features[,features_continuas], 2, sd),2)
 desvio_standard[order(names(desvio_standard))]
 
 ```
@@ -140,7 +201,7 @@ Normalizo los datos con z-score para que sean comparables y los guardo en un nue
 ```{r}
 
 #filtro features numericos
-df_audio_features_num <- df_audio_features[,features]
+df_audio_features_num <- df_audio_features[,features_continuas]
 
 #normalizo z score
 for(i in 1:ncol(df_audio_features_num)){
@@ -166,6 +227,8 @@ length(df_audio_features["track_id"][(df_audio_features$duration_ms > duration.b
 #cuantos artistas
 length(unique(df_audio_features["artist_name"][df_audio_features$duration_ms < duration.bigote.inferior,]))
 ```
+
+
 ```{r}
 #observo nuevo boxplot con outliers filtados de duration_ms
 boxplot(df_audio_features_num["duration_ms"][df_audio_features_num["duration_ms"] <= duration.bigote.superior ])
@@ -195,7 +258,7 @@ boxplot(df_audio_features_filtrado, horizontal = TRUE, las=1, xlab="z-score")
 ```{r}
 library(Rlof)
 
-df_audio_features_num$lof_score <- lof(df_audio_features_num, k=3)
+df_audio_features_num$lof_score <- lof(df_audio_features_num, k=100)
 top_lof <- head(df_audio_features_num[order(df_audio_features_num$lof_score,decreasing = TRUE),],4)
 
 print(top_lof)
