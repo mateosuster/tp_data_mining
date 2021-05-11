@@ -11,6 +11,8 @@ library(tidyverse)
 library(readxl)
 library(mongolite)
 library(sqldf)
+library(isotree)
+library(Rlof)
 ```
 
 ```{r}
@@ -41,28 +43,51 @@ df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mi
 
 ```
 
+
+
 ```{r}
+#armo columna con cantidad de paises donde está disponible cada canción
 
-#Armamos un join para tener una tabla de charts con las caracteristicas de las canciones
+contar_market <- function(x){
+q <- length(unlist(strsplit(x, split = ",")))
+return (q)
+  }
+df_audio_features$cant_markets <- sapply(df_audio_features[,"markets_concat"], contar_market)
 
-join_audio_artist <- df_audio_features %>% 
-  select("artist_name", "track_name", features, "markets_concat") %>% 
-  right_join( df_charts %>%
-               select( "Track_Name", "Artist", 
-                       "Position", "Streams", "week_start", "week_end") %>%
-               group_by(Track_Name, Artist), #%>% 
-               # summarise(avg_position = mean(Position, na.rm=T)),
-              by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
-
-head(join_audio_artist)
+summary(df_audio_features$cant_markets) #hay canciones en cero países. Están dadas de baja
 
 ```
 
 
+```{r}
+#features var continuos
+features_continuas <- c('acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness',   'tempo', 'valence', 'cant_markets')
+
+#features var_ categóricas
+features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "album_type", "markets_concat", "artist_concat")
+
+```
+
 
 ```{r}
 
-##histograma de las variables continuas
+#Armamos un join para tener una tabla de charts con las caracteristicas de las canciones
+
+join_audio_charts <- df_audio_features %>% 
+  select("artist_name", "track_name", features_continuas, features_categoricas) %>% 
+  right_join( df_charts %>%
+               select( "Track_Name", "Artist", 
+                       "Position", "Streams", "week_start", "week_end"),
+               by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
+
+
+head(join_audio_charts)
+```
+
+
+```{r}
+
+##histograma de las variables continuas de audio_features
 
 for (i in features_continuas){
 
@@ -72,55 +97,27 @@ for (i in features_continuas){
 
 }
 
-##barplot de las variables categoricas
+##histograma de las variables continuas de charts
+for (i in c(features_continuas, "Streams")){
+
+  hist(join_audio_charts[,i], main = paste("Histograma de", i), xlab = i)
+  abline(v = mean(join_audio_charts[,i], na.rm = TRUE) , col="red")
+  abline(v = median(join_audio_charts[,i], na.rm = TRUE) , col="blue")
+
+}
+
+c(features_continuas, "Streams")
+
+##barplot de las variables categoricas audio_features
 summary(df_audio_features[,features_categoricas])
-
 table(df_audio_features$album_type)
-
 for(i in features_categoricas){
   print(i)
   barplot(sort(table(df_audio_features[,i]),decreasing = T), main = i, las=2)
   # pie(table(df_features_categoricos[,i]))
 }
 
-
-#cantidad de paises donde está disponible cada canción
-
-contar_market <- function(x){
-q <- length(unlist(strsplit(x, split = ",")))
-return (q)
-  }
-df_audio_features$cant_markets <- sapply(df_audio_features[,"markets_concat"], contar_market)
-
-summary(df_audio_features$cant_markets)
-hist(df_audio_features$cant_markets)
-boxplot(df_audio_features$cant_markets, horizontal = TRUE) #hay canciones en cero países.
-
-df_audio_features[df_audio_features$cant_markets==0,]
-
-
-
-#cantidad de paises donde está disponible cada canción del chart
-
-contar_market <- function(x){
-q <- length(unlist(strsplit(x, split = ",")))
-return (q)
-  }
-
-join_audio_artist$cant_markets <- sapply(join_audio_artist[,"markets_concat"], contar_market)
-
-
-summary(join_audio_artist$cant_markets)
-hist(join_audio_artist$cant_markets)
-boxplot(join_audio_artist$cant_markets, horizontal = TRUE) #hay canciones en cero países.
-
-join_audio_artist[join_audio_artist$cant_markets==0,]
-
-
-
-
-
-# cantidad de veces que aparece cada país (lo sacamos porque na da nada interpretable)
+#cantidad de veces que aparece cada país (lo sacamos porque na da nada interpretable)
 #vector <- unlist(strsplit(df_audio_features[1,"markets_concat"], split = ","))
 #x <- table (vector)
 #x <- sort(x)
@@ -129,26 +126,63 @@ join_audio_artist[join_audio_artist$cant_markets==0,]
 
 
 ```{r}
-summary(df_audio_features[, features_continuas])
-
-for (i in features_continuas){
-  hist(df_audio_features[, i], main= i)
-
-}
+#análisis de correlación
 
 x <- cor(df_audio_features[,features_continuas])
 corrplot(x, type = "upper")
 
+x <- cor(join_audio_charts[,features_continuas])
+corrplot(x, type = "upper")
+
+#agrafar chi2 test
+
+
 ```
 
 # Analisis de outliers
+
 ```{r}
-#features var continuos
-features_continuas <- c('acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness',   'tempo', 'valence')
+#Outlier univariado
 
-#features var_ categóricas
-features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "album_type", "markets_concat", "artist_concat")
+## Metricas de variacion
+#coeficiente de variacion
+cat("coeficiente de variacion\n")
+cv <- round(apply(df_audio_features[,features_continuas], 2, statip::cv, na_rm = T),2)
+cv[order(names(cv))]
 
+cat("\ndesvio_standard\n")
+desvio_standard <- round(apply(df_audio_features[,features_continuas], 2, sd),2)
+desvio_standard[order(names(desvio_standard))]
+
+```
+
+```{r}
+#método 1: boxplot. outlier = > 1.5 DIQ
+
+#calculo bigotes para la variable duration
+duration.bigote.superior <- boxplot(df_audio_features_num$duration_ms)$stats[5]
+duration.bigote.inferior <- boxplot(df_audio_features_num$duration_ms)$stats[1]
+
+#observo cuantos temas unicos superan el bigote
+length(unique(df_audio_features["track_id"][(df_audio_features$duration_ms > duration.bigote.superior | 
+                                               df_audio_features$duration_ms < duration.bigote.inferior),]))
+
+#cuanto temas superan el bigote
+length(df_audio_features["track_id"][(df_audio_features$duration_ms > duration.bigote.superior | 
+                                               df_audio_features$duration_ms < duration.bigote.inferior),])
+#cuantos artistas
+length(unique(df_audio_features["artist_name"][df_audio_features$duration_ms < duration.bigote.inferior,]))
+
+#observo nuevo boxplot con outliers filtados de duration_ms
+boxplot(df_audio_features_num["duration_ms"][df_audio_features_num["duration_ms"] <= duration.bigote.superior ])
+
+#calculo umbral para loudness
+loudness.bigote.inferior <- boxplot(df_audio_features_num$loudness)$stats[1]
+
+#guardo nuevo dataset filtrado (nro instancias 140k, perdemos 16k registros )
+df_audio_features_filtrado <- df_audio_features_num %>% 
+  filter(duration_ms <= duration.bigote.superior &
+         loudness >= loudness.bigote.inferior)
 
 ```
 
@@ -156,9 +190,90 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "albu
 
 
 
+Normalizo los datos con z-score para que sean comparables y los guardo en un nuevo DF
+
+```{r}
+#método 2: z-score
+
+
+#filtro features numericos
+df_audio_features_num <- df_audio_features[,features_continuas]
+
+#normalizo z score
+for(i in 1:ncol(df_audio_features_num)){
+  df_audio_features_num[, i] <- (df_audio_features_num[,i] -
+                                   mean(df_audio_features_num[,i]))/(sd(df_audio_features_num[,i])) }
+
+#analisis de z score
+#variable: speechiness
+umbral_zscore =3
+df_audio_features[df_audio_features_num$speechiness> umbral_zscore,] %>% 
+  select(album_name,artist_name, speechiness ) %>% 
+  arrange(-speechiness)
+
+#falta z score con mediana
+
+```
+
+
+Hay 149,539 temas unicos que superan el bigote superior del boxplot de duration_ms (1.5 veces el RI)
+```{r}
+
+# Configuramos el tamaño del lienzo (ver "par" del paquete graphics)
+par(mfrow=c(1, 1), mar=c(5, 12, 4, 2) ) 
+
+# Y graficamos un solo boxplot con todas las medidas
+# boxplot(df_audio_features_num, horizontal = TRUE, las=1, xlab="z-score")
+boxplot(df_audio_features_filtrado, horizontal = TRUE, las=1, xlab="z-score")
+# stripchart(df_audio_features_filtrado, vertical = FALSE ,
+#     method = "jitter", add = TRUE, pch = 20, col = 'blue')
+```
+
+```{r}
+#outliers multivariados
+
+#método 1: distancias de lof
+df_audio_features_num$lof_score <- lof(df_audio_features_num, k=100)
+top_lof <- head(df_audio_features_num[order(df_audio_features_num$lof_score,decreasing = TRUE),],4)
+
+print(top_lof)
+
+```
+
+```{r}
+#método 2: isolation forest (categóticas y continuas)
+
+#ajusto el modelo
+iforest_sample = isolation.forest(df_audio_features, sample_size = 10000, ntrees=100, ndim = 3, random_seed = 13)
+
+#utilzo el metodo predict para calcula el score sobre todos los puntos
+df_audio_features_filtrado$iforest_pred= predict(iforest_sample, df_audio_features_filtrado)
+
+#que paises identifico?
+top_ifores_sample <- head(df_audio_features[order(df_audio_features_filtrado$iforest_pred,
+                                                  decreasing = T),], 10)
+print(top_ifores_sample)
+```
+
+```{r}
+
+#método 3: mahalanobis
+
+
+
+
+
+
+```
 
 
 ```{r}
+######################################################################
+#                                                                    #
+#      Análisis de los datos (respuesta a  las preguntas del TP)     #
+#                                                                    #
+######################################################################
+
 #Agregar a los artistas y clacular la varianza de los features entre sus temas
 for (i in features_continuas){
 
@@ -206,147 +321,5 @@ boxplot(scale(df_audio_features[,features_continuas]), ylim=c(-5,5), las=3)
 
 ```
 
-
-
-
-## Metricas de variacion
-```{r}
-#coeficiente de variacion
-cat("coeficiente de variacion\n")
-cv <- round(apply(df_audio_features[,features_continuas], 2, statip::cv, na_rm = T),2)
-cv[order(names(cv))]
-
-cat("\ndesvio_standard\n")
-desvio_standard <- round(apply(df_audio_features[,features_continuas], 2, sd),2)
-desvio_standard[order(names(desvio_standard))]
-
 ```
 
-
-Normalizo los datos con z-score para que sean comparables y los guardo en un nuevo DF
-
-```{r}
-
-#filtro features numericos
-df_audio_features_num <- df_audio_features[,features_continuas]
-
-#normalizo z score
-for(i in 1:ncol(df_audio_features_num)){
-  df_audio_features_num[, i] <- (df_audio_features_num[,i] -
-                                   mean(df_audio_features_num[,i]))/(sd(df_audio_features_num[,i])) }
-
-```
-
-
-Hay 149,539 temas unicos que superan el bigote superior del boxplot de duration_ms (1.5 veces el RI)
-```{r}
-#calculo bigotes para la variable duration
-duration.bigote.superior <- boxplot(df_audio_features_num$duration_ms)$stats[5]
-duration.bigote.inferior <- boxplot(df_audio_features_num$duration_ms)$stats[1]
-
-#observo cuantos temas unicos superan el bigote
-length(unique(df_audio_features["track_id"][(df_audio_features$duration_ms > duration.bigote.superior | 
-                                               df_audio_features$duration_ms < duration.bigote.inferior),]))
-
-#cuanto temas superan el bigote
-length(df_audio_features["track_id"][(df_audio_features$duration_ms > duration.bigote.superior | 
-                                               df_audio_features$duration_ms < duration.bigote.inferior),])
-#cuantos artistas
-length(unique(df_audio_features["artist_name"][df_audio_features$duration_ms < duration.bigote.inferior,]))
-```
-
-
-```{r}
-#observo nuevo boxplot con outliers filtados de duration_ms
-boxplot(df_audio_features_num["duration_ms"][df_audio_features_num["duration_ms"] <= duration.bigote.superior ])
-
-#calculo umbral para loudness
-loudness.bigote.inferior <- boxplot(df_audio_features_num$loudness)$stats[1]
-
-#guardo nuevo dataset filtrado (nro instancias 140k, perdemos 16k registros )
-df_audio_features_filtrado <- df_audio_features_num %>% 
-  filter(duration_ms <= duration.bigote.superior &
-         loudness >= loudness.bigote.inferior)
-
-```
-
-
-```{r}
-# Configuramos el tamaño del lienzo (ver "par" del paquete graphics)
-par(mfrow=c(1, 1), mar=c(5, 12, 4, 2) ) 
-
-# Y graficamos un solo boxplot con todas las medidas
-# boxplot(df_audio_features_num, horizontal = TRUE, las=1, xlab="z-score")
-boxplot(df_audio_features_filtrado, horizontal = TRUE, las=1, xlab="z-score")
-# stripchart(df_audio_features_filtrado, vertical = FALSE ,
-#     method = "jitter", add = TRUE, pch = 20, col = 'blue')
-```
-
-```{r}
-library(Rlof)
-
-df_audio_features_num$lof_score <- lof(df_audio_features_num, k=100)
-top_lof <- head(df_audio_features_num[order(df_audio_features_num$lof_score,decreasing = TRUE),],4)
-
-print(top_lof)
-```
-
-```{r}
-library(isotree)
-
-#ajusto el modelo
-iforest_sample = isolation.forest(df_audio_features_filtrado, sample_size = 10000, ntrees=100, ndim = 3, random_seed = 13)
-
-#utilzo el metodo predict para calcula el score sobre todos los puntos
-df_audio_features_filtrado$iforest_pred= predict(iforest_sample, df_audio_features_filtrado)
-
-#que paises identifico?
-top_ifores_sample <- head(df_audio_features[order(df_audio_features_filtrado$iforest_pred,
-                                                  decreasing = T),], 10)
-print(top_ifores_sample)
-```
-
-
-
-```{r}
-#analisis de z score
-#variable: speechiness
-umbral_zscore =3
-df_audio_features[df_audio_features_num$speechiness> umbral_zscore,] %>% 
-  select(album_name,artist_name, speechiness ) %>% 
-  arrange(-speechiness)
-
-```
-
-
-<<<<<<< HEAD
-=======
-```{r}
-
-#espacio de nacho
-
-
-```
-
-
-
-
-
-```{r}
-#espacio de igal
-
-
-
-
-
-```
-
-
-
-
-
-
-
-
-
->>>>>>> 6b28e5e79f4ba92ff9a5a8224a77530a90857d00
