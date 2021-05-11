@@ -25,7 +25,13 @@ df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 
 
 ```{r}
-features_categoricos <-c( 'explicit', 'key_name', 'mode_name', "key_mode", "album_type")
+features_categoricos <-c( 'explicit', 'key_name', 'mode_name',
+                          "key_mode", "album_type")#, 
+                          #"artist_concat", "markets_concat")
+
+features_num <- c('acousticness', 'danceability', 'duration_ms', 'energy', 
+              'instrumentalness', 'liveness', 'loudness', 'speechiness',  
+              'tempo', 'valence')
 # features_categoricos <-c( explicit, disc_number,key_name, mode_name, key_mode, album_type)
 # time_signature
 
@@ -71,35 +77,50 @@ Se observan valores altos del test chi cuadrado, por lo que se puede rechazar la
 
 
 
+
+
+## Join Charts y Audio Features
+```{r}
+
+
+join_audio_artist <- df_audio_features %>% 
+  select("artist_name", "track_name", features_num, features_categoricos) %>% 
+  right_join( df_charts %>%
+               select( "Track_Name", "Artist", 
+                       "Position", "Streams", "week_start", "week_end") %>%
+               group_by(Track_Name, Artist),
+              by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
+glimpse(join_audio_artist)
+```
 ## Analisis de NA's de Audio Feature
 ```{r}
-sum(is.na(df_audio_features))
+sum(is.na(join_audio_artist))
+sum(!complete.cases(join_audio_artist))
+
+Ssum(is.na(df_audio_features))
+sum(is.na(df_charts))
 ```
 
 ```{r}
 library(mice)
-md.pattern(df_audio_features, rotate.names = T)
+md.pattern(join_audio_artist, rotate.names = T)
 ```
 
 
-## experimento/ bosquejo de join
 ```{r}
-features <- c('acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness',   'tempo', 'valence')
-
-df_audio_features %>% 
-  select("artist_name", "track_name", features) %>% 
-  left_join( df_charts %>%
-               select( "Track_Name", "Artist", "Position") %>%
-               group_by(Track_Name, Artist) %>% 
-               summarise(avg_position = mean(Position, na.rm=T)),
-              by = c("track_name" = "Track_Name","artist_name" ="Artist"  ))
-
-
+library(VIM)
+# Proporción de cada combinación
+faltantes = summary(aggr(join_audio_artist, sortVar=TRUE, plot=F))
+print(faltantes$combinations)
 ```
 
 
+```{r}
+join_audio_artist_complete <- na.omit(join_audio_artist)
+nrow(join_audio_artist_complete)
+```
 
-
+## Patron Comun Canciones del Chart
 
 
 
