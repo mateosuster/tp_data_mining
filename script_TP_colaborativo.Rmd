@@ -326,8 +326,42 @@ matriz_var_cov = cov(df_audio_features_mahala[,features_continuas])
 df_audio_features_mahala$maha = sqrt(mahalanobis(df_audio_features_mahala[,features_continuas],vector_medias,matriz_var_cov))
 
 # Los registros mas distantes. criterio del bastón partido
-top_maha <- head(df_audio_features_mahala[order(df_audio_features_mahala$maha,decreasing = TRUE),],300)
+top_maha <- head(df_audio_features_mahala[order(df_audio_features_mahala$maha,decreasing = TRUE),],85)
 plot(top_maha$maha) #se observa que las distancias se achican mucho a partir de las 85 más distantes al centro
+unique(top_maha$artist_name)
+
+table(top_maha$artist_name)
+
+###############################
+
+#charts
+#audio_features
+join_audio_charts_mahala <- join_audio_charts
+vector_medias = colMeans(join_audio_charts_mahala[,features_continuas], na.rm = TRUE) 
+matriz_var_cov = cov(join_audio_charts_mahala[,features_continuas], use = "complete.obs")
+
+# Creamos una variable con la distancia
+join_audio_charts_mahala$maha = sqrt(mahalanobis(join_audio_charts_mahala[,features_continuas],vector_medias,matriz_var_cov))
+
+# Los registros mas distantes. criterio del bastón partido
+top_maha <- head(join_audio_charts_mahala[order(join_audio_charts_mahala$maha,decreasing = TRUE),],200)
+plot(top_maha$maha) #se observa que las distancias se achican mucho a partir de las 85 más distantes al centro
+x <- as.data.frame(table(top_maha$artist_name))
+x <- x[order(-x$Freq),]
+print(x)
+
+y <- as.data.frame(table(join_audio_charts$artist_name))
+
+outlier <- function(z){
+  
+  print(z[1])
+  #q <- y[y$Var1==z,"Freq"]
+  
+  #k <- x["Var1"==z, "Freq"]
+  
+  return ()
+  }
+x$prop_outlier <- sapply(x[,"Var1"], outlier)
 
 
 
