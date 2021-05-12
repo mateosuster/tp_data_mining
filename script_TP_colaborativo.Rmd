@@ -14,6 +14,7 @@ library(sqldf)
 library(isotree)
 library(Rlof)
 library(lubridate)
+library(iglewicz_hoaglin)
 ```
 # Carga de bases
 ```{r}
@@ -254,9 +255,10 @@ df_audio_features_zscore_media <- df_audio_features[,features_continuas_media]
 
 #normalizo z score con las variables que tienden a la normal
 for(i in 1:ncol(df_audio_features_zscore_media)){
-  df_audio_features_zscore_media[, i] <- (df_audio_features_zscore_media[,i] -
-                                   mean(df_audio_features_zscore_media[,i]))/(sd(df_audio_features_zscore_media[,i])) }
+  df_audio_features_zscore_media[, i] <- (df_audio_features_zscore_media[,i] -                                   mean(df_audio_features_zscore_media[,i]))/(sd(df_audio_features_zscore_media[,i]))
+  }
 
+df_audio_features_zscore_media
 #normalizo z score modificado las variables que NO tienden a la normal
 
 
@@ -266,7 +268,19 @@ umbral_zscore = 3
 df_audio_features[df_audio_features_zscore_media$speechiness> umbral_zscore,] %>% 
   select(album_name,artist_name, speechiness ) %>% 
   arrange(-speechiness)
+
 #falta z score con mediana
+
+for (i in 1:ncol(df_audio_features_zscore_mediana)){
+  med = median(df_audio_features_zscore_mediana[,i], na.rm = T)
+  MAD = median(abs(df_audio_features_zscore_mediana[,i] - med), na.rm = T)
+  Mi = 0.6745 * (df_audio_features_zscore_mediana[,i] - med) / MAD
+  x[abs(Mi) > 3.5,i] = "outlier"
+  df_audio_features_zscore_mediana[paste("zscore_",i, sep="")] <- x
+}
+
+
+
 
 
 
@@ -348,22 +362,31 @@ top_maha <- head(join_audio_charts_mahala[order(join_audio_charts_mahala$maha,de
 plot(top_maha$maha) #se observa que las distancias se achican mucho a partir de las 85 más distantes al centro
 x <- as.data.frame(table(top_maha$artist_name))
 x <- x[order(-x$Freq),]
+x$Var1 <- as.character(x$Var1)
 print(x)
 
+class(x$Var1)
+
 y <- as.data.frame(table(join_audio_charts$artist_name))
+y$Var1 <- as.character(y$Var1)
 
 outlier <- function(z){
   
-  print(z[1])
-  #q <- y[y$Var1==z,"Freq"]
+  q <- y[y$Var1==z,"Freq"] #freq de aparicion en chart
+  print(y[y$Var1==z,"Freq"])
+  print (q)
   
-  #k <- x["Var1"==z, "Freq"]
+  k <- x[x$Var1==z, "Freq"] #freq de aparicion en mahala
   
-  return ()
+  j <- k/q 
+  
+  return (j)
   }
 x$prop_outlier <- sapply(x[,"Var1"], outlier)
 
+x <- x[order(-x$prop_outlier),]
 
+hist(x$prop_outlier, breaks = 10, ylim=c(0,20), main = "Proporción de canciones outlier de un artista de las que están en el chart")
 
 ```
 
@@ -565,5 +588,5 @@ boxplot(scale(df_audio_features[,features_continuas]), ylim=c(-5,5), las=3)
 
 ```
 
-```
+
 
