@@ -278,14 +278,6 @@ for (i in 1:ncol(df_audio_features_zscore_mediana)){
   x[abs(Mi) > 3.5,i] = "outlier"
   df_audio_features_zscore_mediana[paste("zscore_",i, sep="")] <- x
 }
-
-
-
-
-
-
-
-
 ```
 
 
