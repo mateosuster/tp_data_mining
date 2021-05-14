@@ -32,10 +32,10 @@ df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mi
 #queda listo para el join con chrats
 df_audio_features <- df_audio_features %>% 
   group_by(track_name, external_urls_spotify) %>% 
-  mutate(artist_new = paste(artist_name, collapse = ",|,")) %>%
+  mutate(artist_all = paste(artist_name, collapse = ",|,")) %>%
   ungroup() %>% 
-  mutate(artist_key = sub(",|,.*", "", artist_new)) %>% 
-  select(artist_name, artist_new, artist_key, everything(.)) %>% 
+  mutate(artist_key = sub(",|,.*", "", artist_all)) %>% 
+  select(artist_name, artist_all, artist_key, everything(.)) %>% 
   distinct(artist_key, external_urls_spotify, .keep_all = T)
  
  
@@ -110,7 +110,7 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "albu
 #Armamos un join para tener una tabla de charts con las caracteristicas de las canciones
 # deberian quedar 22993 filas completas
 join_audio_charts <- df_audio_features %>% 
-  select("artist_name","artist_new","artist_key",
+  select("artist_name","artist_all","artist_key",
          "track_name", "external_urls_spotify",
          features_continuas, features_categoricas) %>% 
   right_join( df_charts %>%
