@@ -14,19 +14,32 @@ library(sqldf)
 library(isotree)
 library(Rlof)
 library(lubridate)
-library(iglewicz_hoaglin)
+library(mice)
 ```
 # Carga de bases
 ```{r}
 #dir igal
- df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
-# 
+df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
+
+#borrado de duplicados que quedaron
 
 # # 
- df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
+df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
 # # 
- df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
+df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
 
+#borro duplicados que quedaron en el aurio_features
+#queda listo para el join con chrats
+df_audio_features <- df_audio_features %>% 
+  group_by(track_name, external_urls_spotify) %>% 
+  mutate(artist_new = paste(artist_name, collapse = ",|,")) %>%
+  ungroup() %>% 
+  mutate(artist_key = sub(",|,.*", "", artist_new)) %>% 
+  select(artist_name, artist_new, artist_key, everything(.)) %>% 
+  distinct(artist_key, external_urls_spotify, .keep_all = T)
+ 
+ 
+ 
 #dir Nacho
 #df_artist <- read.csv()
 
@@ -40,12 +53,17 @@ library(iglewicz_hoaglin)
 #df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 
 
-#filtro NA
-df_audio_features <-na.omit(df_audio_features) %>% 
-  distinct()
-df_charts <-na.omit(df_charts) %>% 
-  distinct()
 
+
+
+```
+
+
+```{r}
+#Análisis de NA
+md.pattern(df_audio_features, rotate.names = TRUE) #faltan dos columas irrelevantes
+md.pattern(df_charts, rotate.names = TRUE)
+#md.pattern(df_artist, rotate.names = TRUE) #no tiene sentido con 1 sola columna
 
 ```
 
@@ -70,7 +88,10 @@ return (q)
 df_audio_features$cant_markets <- sapply(df_audio_features[,"markets_concat"], contar_market)
 
 summary(df_audio_features$cant_markets) #hay canciones en cero países. Están dadas de baja
+df_audio_features[order(-df_audio_features$cant_markets),"cant_markets"]
 
+
+head(df_audio_features[1:300,], 300)
 ```
 
 #vectores de features
@@ -89,27 +110,22 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "albu
 #Armamos un join para tener una tabla de charts con las caracteristicas de las canciones
 # deberian quedar 22993 filas completas
 join_audio_charts <- df_audio_features %>% 
-  select("artist_name", "track_name", 
-         "external_urls_spotify",
+  select("artist_name","artist_new","artist_key",
+         "track_name", "external_urls_spotify",
          features_continuas, features_categoricas) %>% 
-  mutate(artist_track = paste(artist_name, track_name, sep = "-")) %>% 
   right_join( df_charts %>%
                select( "Track_Name", "Artist", 
-                       "URL",
-                       "Position", "Streams", "week_start", "week_end") %>% 
-                mutate(artist_track = paste(Artist, Track_Name, sep = "-")),
-               by  = c("external_urls_spotify" = "URL"))
-               # by = "artist_track")
-               # by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
+                       "URL","Position", "Streams", "week_start", "week_end"),
+               by = c(
+                 # "track_name" = "Track_Name", 
+                      "artist_key" ="Artist", 
+                      "external_urls_spotify" = "URL"))
 
-#Num de instancias con NA
-sum(!complete.cases(join_audio_charts))
-sum(complete.cases(join_audio_charts))
 
-### ELIMINO NA
-join_audio_charts <- na.omit(join_audio_charts)
+x <- nrow(df_charts)- nrow(join_audio_charts)
 
-# glimpse(join_audio_charts)
+#Análisis de NA
+md.pattern(join_audio_charts, rotate.names = TRUE) #HAY CHARTS QUE NO TIENEN FEATURES. HAY QUE TENERLO EN CUENTA                                                    PARA EL ANÁLISIS
 ```
 
 # histogramas y barplots de variables 
@@ -127,7 +143,7 @@ for (i in features_continuas){
 }
 
 #divido los features por su distribución
-features_continuas_media <- c('danceability', 'tempo', 'valence', 'cant_markets')
+features_continuas_media <- c('danceability', 'tempo', 'valence')
 
 features_continuas_mediana <- c('acousticness', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness', 'cant_markets')
 
@@ -142,7 +158,7 @@ for (i in c(features_continuas, "Streams")){
 }
 
 #divido features de charts según su distribución
-audio_charts_continuas_media <- c('danceability', 'duration_ms', 'valence', 'cant_markets')
+audio_charts_continuas_media <- c('danceability', 'duration_ms', 'valence')
 
 audio_charts_continuas_mediana <- c('acousticness', 'tempo', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness', 'cant_markets', "Streams")
 
@@ -294,6 +310,34 @@ boxplot(df_audio_features_scale, horizontal = TRUE, las=1, xlab="z-score")
 ## LOF
 
 ```{r}
+
+###################################################
+
+#       BORRADO DE ATRIBUTOS REDUNDANTES
+
+################################################ 
+
+library(caret)
+x <- cor(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], use = "complete.obs")
+alta.correlacion <- findCorrelation(x, cutoff=0.85, names=TRUE, verbose= TRUE)
+
+
+
+
+
+
+###################################################
+
+#                     CPA
+
+################################################
+
+
+```
+
+
+
+```{r}
 #outliers multivariados
 
 #método 1: distancias de lof
@@ -320,6 +364,8 @@ print(top_ifores_sample)
 ```
 
 ```{r}
+
+
 
 #método 3: mahalanobis
 
@@ -352,14 +398,14 @@ join_audio_charts_mahala$maha = sqrt(mahalanobis(join_audio_charts_mahala[,featu
 # Los registros mas distantes. criterio del bastón partido
 top_maha <- head(join_audio_charts_mahala[order(join_audio_charts_mahala$maha,decreasing = TRUE),],200)
 plot(top_maha$maha) #se observa que las distancias se achican mucho a partir de las 85 más distantes al centro
-x <- as.data.frame(table(top_maha$artist_name))
+x <- as.data.frame(table(top_maha$track_name))
 x <- x[order(-x$Freq),]
 x$Var1 <- as.character(x$Var1)
 print(x)
 
 class(x$Var1)
 
-y <- as.data.frame(table(join_audio_charts$artist_name))
+y <- as.data.frame(table(join_audio_charts$track_name))
 y$Var1 <- as.character(y$Var1)
 
 outlier <- function(z){
@@ -379,6 +425,11 @@ x$prop_outlier <- sapply(x[,"Var1"], outlier)
 x <- x[order(-x$prop_outlier),]
 
 hist(x$prop_outlier, breaks = 10, ylim=c(0,20), main = "Proporción de canciones outlier de un artista de las que están en el chart")
+
+nombre <- x$Var1
+join_audio_charts[join_audio_charts$track_name %in% nombre,]
+
+
 
 ```
 
