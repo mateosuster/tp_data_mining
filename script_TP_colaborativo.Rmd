@@ -19,26 +19,15 @@ library(mice)
 # Carga de bases
 ```{r}
 #dir igal
-df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
+# df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
+# 
+# #borrado de duplicados que quedaron
+# 
+# # # 
+# df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
+# # # 
+# df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
 
-#borrado de duplicados que quedaron
-
-# # 
-df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
-# # 
-df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
-
-#borro duplicados que quedaron en el aurio_features
-#queda listo para el join con chrats
-df_audio_features <- df_audio_features %>% 
-  group_by(track_name, external_urls_spotify) %>% 
-  mutate(artist_all = paste(artist_name, collapse = ",|,")) %>%
-  ungroup() %>% 
-  mutate(artist_key = sub(",|,.*", "", artist_all)) %>% 
-  select(artist_name, artist_all, artist_key, everything(.)) %>% 
-  distinct(artist_key, external_urls_spotify, .keep_all = T)
- 
- 
  
 #dir Nacho
 #df_artist <- read.csv()
@@ -48,13 +37,21 @@ df_audio_features <- df_audio_features %>%
 #df_audio_features <- read.csv()
 
 #dir Mateo
-#df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
-#df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
-#df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
+df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
+df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
+df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 
-
-
-
+#borro duplicados que quedaron en el aurio_features
+#queda listo para el join con chrats
+df_audio_features <- df_audio_features %>% 
+  group_by(track_name, external_urls_spotify) %>% 
+  mutate(artist_all = paste(artist_name, collapse = ",|,")) %>%
+  ungroup() %>% 
+  mutate(artist_key = sub(",|,.*", "", artist_all)) %>% 
+  select(artist_name, artist_all, artist_key, everything(.)) %>% 
+  distinct(artist_key, external_urls_spotify, .keep_all = T) %>% 
+  as.data.frame()
+ 
 
 ```
 
@@ -88,10 +85,10 @@ return (q)
 df_audio_features$cant_markets <- sapply(df_audio_features[,"markets_concat"], contar_market)
 
 summary(df_audio_features$cant_markets) #hay canciones en cero países. Están dadas de baja
-df_audio_features[order(-df_audio_features$cant_markets),"cant_markets"]
+# df_audio_features[order(-df_audio_features$cant_markets),"cant_markets"]
 
 
-head(df_audio_features[1:300,], 300)
+# head(df_audio_features[1:300,], 300)
 ```
 
 #vectores de features
@@ -125,7 +122,7 @@ join_audio_charts <- df_audio_features %>%
 x <- nrow(df_charts)- nrow(join_audio_charts)
 
 #Análisis de NA
-md.pattern(join_audio_charts, rotate.names = TRUE) #HAY CHARTS QUE NO TIENEN FEATURES. HAY QUE TENERLO EN CUENTA                                                    PARA EL ANÁLISIS
+md.pattern(join_audio_charts, rotate.names = TRUE) #HAY CHARTS QUE NO TIENEN FEATURES. HAY QUE TENERLO EN CUENTA PARA EL ANÁLISIS
 ```
 
 # histogramas y barplots de variables 
@@ -476,11 +473,14 @@ sum(!complete.cases(df_audio_features_complete))
 ```{r}
 #anti_join
 anti_join_audio_charts <- df_audio_features %>% 
-  select("artist_name", "track_name", "external_urls_spotify", features_continuas, features_categoricas) %>% 
+  select("artist_name","artist_all", "artist_key",
+         "track_name", "external_urls_spotify", 
+         features_continuas, features_categoricas) %>% 
   anti_join( df_charts %>%
                select( "Track_Name", "Artist", "URL"),
-               by = c("external_urls_spotify" ="URL"))
-               # by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
+               by = c("external_urls_spotify" ="URL",
+                      "artist_key" ="Artist"  ))
+               # by = c("track_name" = "Track_Name"))
 
 
 anti_join_audio_charts_complete <- na.omit(anti_join_audio_charts)
@@ -503,9 +503,28 @@ for (i in features_continuas) {
             gather(key = variable, value = valor, 1:11) %>% 
             filter(variable== i ) %>%
               ggplot( aes(valor, fill = is_chart))+
-                labs(title = paste("histograma de", i),
+                labs(title = paste("Densidad de", i),
                      subtitle = "Comparacion temas de chart vs no-chart")+
                 geom_density(alpha = 0.2)) 
+}
+
+```
+
+
+```{r}
+for (i in features_continuas) {
+  print(join_audio_charts_complete_scale %>%
+            mutate(is_chart = "chart") %>%
+            rbind(anti_join_audio_charts_complete_scale %>%
+              mutate(is_chart= "no_chart")) %>%
+            # rbind(df_audio_features_complete_scale %>%
+              # mutate(is_chart= "all")) %>%
+            gather(key = variable, value = valor, 1:11) %>% 
+            filter(variable== i ) %>%
+              ggplot( aes(valor, fill = is_chart))+
+                labs(title = paste("Boxplot de", i),
+                     subtitle = "Comparacion temas de chart vs no-chart")+
+                geom_boxplot(alpha = 0.2)) 
 }
 
 ```
