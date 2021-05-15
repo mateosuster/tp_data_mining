@@ -15,6 +15,7 @@ library(isotree)
 library(Rlof)
 library(lubridate)
 library(mice)
+library(randomForest)
 ```
 # Carga de bases
 ```{r}
@@ -198,7 +199,7 @@ for(i in features_categoricas){
 
 #correlaciones en audio features
 x <- cor(df_audio_features[,c(features_continuas_media, features_continuas_mediana)],  use =  "complete.obs")
-corrplot(x, type = "upper", title = "Correlacion de atributos de audio", mar=c(0,0,1,0), method="number" )
+corrplot(x, type = "upper", title = "Correlacion de atributos de audio", mar=c(0,0,1,0) )
 
 #correlaciones en charts
 x <- cor(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], use =  "complete.obs")
@@ -326,15 +327,36 @@ df_audio_features_filtrado <- df_audio_features %>%
 
 ################################################ 
 
-library(caret)
-x <- cor(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], use = "complete.obs")
-alta.correlacion <- findCorrelation(x, cutoff=0.85, names=TRUE, verbose= TRUE)
+#audio features
+df_audio_features_cuanti <- df_audio_features[,c(features_continuas_media, features_continuas_mediana)]
+
+corr_audio_features <- cor(df_audio_features_cuanti, use = "complete.obs")
+df_audio_features_s_at_redund <- findCorrelation(corr_audio_features, cutoff=0.60, names=TRUE, verbose= TRUE)
+
+print(df_audio_features_s_at_redund) # Energy y Loudnes tienen alta correlación con otras variables.
+                        # Las borramos!
+
+df_audio_features_s_at_redund <- df_audio_features_cuanti %>% select(-c("energy", "loudness")) 
+
+df_audio_features_s_at_redund <- cbind(df_audio_features$track_name, df_audio_features_s_at_redund)
 
 
+#audio charts
+df_audio_charts_cuanti <- join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)]
 
+corr_charts <- cor(df_audio_charts_cuanti, use = "complete.obs")
 
+df_audio_charts_s_at_redund <- findCorrelation(corr_charts, cutoff=0.60, names=TRUE, verbose= TRUE)
 
+print(df_audio_charts_s_at_redund) # Energy y Loudnes tienen alta correlación con otras variables.
+                                  # Las borramos!
 
+df_audio_charts_s_at_redund <- df_audio_features_cuanti %>% select(-c("energy"))
+
+df_audio_charts_s_at_redund <- df_audio_charts_s_at_redund[complete.cases(df_audio_charts_s_at_redund) == TRUE,]
+
+x <- join_audio_charts[complete.cases(join_audio_charts) == TRUE,]
+df_audio_charts_s_at_redund <- cbind(x$track_name, df_audio_charts_s_at_redund)
 
 
 ###################################################
@@ -343,6 +365,29 @@ alta.correlacion <- findCorrelation(x, cutoff=0.85, names=TRUE, verbose= TRUE)
 
 ################################################
 
+df_audio_features_s_at_redund.PCA = prcomp(df_audio_features_s_at_redund[,2:ncol(df_audio_features_s_at_redund)], scale. = TRUE)
+
+round(df_audio_features_s_at_redund.PCA$sdev^2,2)
+
+round(df_audio_features_s_at_redund.PCA$center,2)
+
+round(df_audio_features_s_at_redund.PCA$scale,2)
+
+df_audio_features_s_at_redund.PCA$rotation #autovectores de CPA
+
+summary(df_audio_features_s_at_redund.PCA)
+
+carga1 = data.frame(cbind(X=1:length(df_audio_features_s_at_redund[,2:ncol(df_audio_features_s_at_redund)]), primeracarga=data.frame(df_audio_features_s_at_redund.PCA$rotation)[,1]))
+
+carga2 = data.frame(cbind(X=1:length(df_audio_features_s_at_redund[,2:ncol(df_audio_features_s_at_redund)]), primeracarga=data.frame(df_audio_features_s_at_redund.PCA$rotation)[,2]))
+
+print(round(cbind(carga1,carga2),2))
+
+ggplot(carga1, aes(X,primeracarga) ,
+       fill=tramo ) + geom_bar ( stat="identity" ,
+       position="dodge" ,
+       fill ="royalblue" ,
+       width =0.5 ) + xlab( 'Tramo' ) + ylab('Primeracarga ' )
 
 ```
 
