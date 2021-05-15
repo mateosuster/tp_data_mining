@@ -31,11 +31,9 @@ df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCE
 
 
 #dir Nacho
-#df_artist <- read.csv()
-
-#df_charts <- read.csv()
-
-#df_audio_features <- read.csv()
+df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
+df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
+df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
 
 #dir Mateo
 df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
@@ -52,7 +50,6 @@ df_audio_features <- df_audio_features %>%
   select(artist_name, artist_all, artist_key, everything(.)) %>% 
   distinct(artist_key, external_urls_spotify, .keep_all = T) %>% 
   as.data.frame()
-
 
 ```
 
@@ -245,50 +242,77 @@ desvio_standard[order(names(desvio_standard))]
 as.data.frame(cbind(cv_features, cv_charts))
 
 ```
+
 ## Boxplots (filtrado de outliers de duration_ms y loudness)
 ```{r}
 #método 1: boxplot. outlier = > 1.5 DIQ
 
 boxplot(scale(df_audio_features[,c(features_continuas_media, features_continuas_mediana)]), las=2)
 
+```
+
+```{r}
 
 ################################
 
-## FILTRAMOS OUTLIERS POR Z-SCORE DEPENDIENDO DEL TIPO DE DISTRIBUCION
+## FILTRAMOS OUTLIERS POR Z-SCORE para 'danceability', 'tempo', 'valence'
 
 ##############################
 
-#z-score para var que tienden a la normal
+#z-score para variables que tienden a la normal
 #filtro features numericos 
+
+#divido los features por su distribución
+features_continuas_media <- c('danceability', 'tempo', 'valence')
+
 df_audio_features_zscore_media <- df_audio_features[,features_continuas_media]
 
 #normalizo z score con las variables que tienden a la normal
-for(i in 1:ncol(df_audio_features_zscore_media)){
-  df_audio_features_zscore_media[, i] <- (df_audio_features_zscore_media[,i] -                                   mean(df_audio_features_zscore_media[,i]))/(sd(df_audio_features_zscore_media[,i]))
+
+zscore_cols <- c()
+for(col in names(df_audio_features_zscore_media)){
+  name_col <- paste('zscore_',col)
+  zscore_cols <- append(zscore_cols, name_col)
+  media <-  mean(df_audio_features_zscore_media[,col])
+  stdv <- sd(df_audio_features_zscore_media[,col])
+  df_audio_features_zscore_media[,name_col] <- (df_audio_features_zscore_media[,col] - media)/stdv
   }
 
-df_audio_features_zscore_media
-#normalizo z score modificado las variables que NO tienden a la normal
+par(mfrow=c(1,length(zscore_cols)))
+lapply(zscore_cols, function(col) boxplot(df_audio_features_zscore_media[,col],xlab=col))
+
+# #analisis de z score
+# #variable: speechiness
+# umbral_zscore = 1
+# df_audio_features[df_audio_features_zscore_media$zscore_speechiness> umbral_zscore,] %>% 
+#   select(album_name,artist_name, speechiness ) %>% 
+#   arrange(-speechiness)
 
 
-#analisis de z score
-#variable: speechiness
-umbral_zscore = 3
-df_audio_features[df_audio_features_zscore_media$speechiness> umbral_zscore,] %>% 
-  select(album_name,artist_name, speechiness ) %>% 
-  arrange(-speechiness)
+```
 
-#falta z score con mediana
+
+
+```{r}
+################################
+
+## FILTRAMOS OUTLIERS POR Z-SCORE MODIFICADO para 'acousticness', 'duration_ms', 'energy',  'instrumentalness', 'liveness', 'loudness', 'speechiness', 'cant_markets'
+
+##############################
+
+features_continuas_mediana <- c('acousticness', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness', 'cant_markets')
+
+df_audio_features_zscore_mediana <- df_audio_features[,features_continuas_mediana]
+
 
 for (i in 1:ncol(df_audio_features_zscore_mediana)){
   med = median(df_audio_features_zscore_mediana[,i], na.rm = T)
   MAD = median(abs(df_audio_features_zscore_mediana[,i] - med), na.rm = T)
-  Mi = 0.6745 * (df_audio_features_zscore_mediana[,i] - med) / MAD
-  x[abs(Mi) > 3.5,i] = "outlier"
-  df_audio_features_zscore_mediana[paste("zscore_",i, sep="")] <- x
-}
+  df_audio_features_zscore_media[, i] <- 0.6745 * (df_audio_features_zscore_mediana[,i] - med) / MAD
+  }
 
 
+length(df_audio_features_zscore_media)
 #################################
 
 #analisis de outliers ¿quíenes son los que me voy a sacar de encima?
@@ -317,6 +341,8 @@ df_audio_features_filtrado <- df_audio_features %>%
 #
 
 ```
+
+
 
 
 ```{r}
