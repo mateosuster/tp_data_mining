@@ -345,75 +345,94 @@ df_audio_features_filtrado <- df_audio_features %>%
 
 
 
+
+```{r}
+###########################################
+
+# borro atributos redundantes. Paso 1
+#               correlograma
+
+#########################################
+
+#audio charts
+df_audio_charts_cuanti <- join_audio_charts[,c("track_name",audio_charts_continuas_media, audio_charts_continuas_mediana)]
+
+df_audio_charts_cuanti <- df_audio_charts_cuanti[complete.cases(df_audio_charts_cuanti) == TRUE,]
+
+df_audio_charts_cuanti <- df_audio_charts_cuanti %>% group_by(track_name) %>%
+                                                 mutate(Streams= max(Streams)) %>%
+                                                 distinct(track_name, .keep_all = TRUE)
+
+corr_charts <- cor(df_audio_charts_cuanti[,2:ncol(df_audio_charts_cuanti)])
+
+df_audio_charts_s_at_redund <- findCorrelation(corr_charts, cutoff=0.60, names=TRUE, verbose= TRUE)
+
+print(df_audio_charts_s_at_redund) # Energy  tienen alta correlación con otras variables.
+                                  
+df_audio_charts_s_at_redund <- df_audio_charts_cuanti %>% select(-c("energy")) # La borramos!
+
+# conclusión: chau energy, sucede porque es combinación de otras.
+
+##########################################
+
+#paso 2: busqueda de features con poca variabilidad
+
+#######################################
+
+lvf <-  df_audio_charts_s_at_redund[,2:ncol(df_audio_charts_s_at_redund)]
+
+#normalizo todas las variables entre 0 y 1
+for(i in 1:ncol(lvf)) {
+  lvf[,i] <- (lvf[,i]-min(lvf[,i]))/(max(lvf[,i])-min(lvf[,i]))
+}
+varianzas<-sort(round(apply(lvf, 2, var),4))
+
+df_audio_charts_s_at_redund <- cbind(track_name = df_audio_charts_s_at_redund$track_name, lvf)
+
+# Borro atributos con poca variablilidad:
+
+df_audio_charts_s_at_redund <- df_audio_charts_s_at_redund %>% select(-c("instrumentalness", "duration_ms", "Streams", "loudness", "speechiness", "liveness"))
+
+cor(df_audio_charts_s_at_redund[,2:6]) # hay baja correlacion entre ellas. buena limpieza!
+
+```
+
+
+
+
 ```{r}
 
 ###################################################
 
-#       BORRADO DE ATRIBUTOS REDUNDANTES
-
-################################################ 
-
-#audio features
-df_audio_features_cuanti <- df_audio_features[,c(features_continuas_media, features_continuas_mediana)]
-
-corr_audio_features <- cor(df_audio_features_cuanti, use = "complete.obs")
-df_audio_features_s_at_redund <- findCorrelation(corr_audio_features, cutoff=0.60, names=TRUE, verbose= TRUE)
-
-print(df_audio_features_s_at_redund) # Energy y Loudnes tienen alta correlación con otras variables.
-                        # Las borramos!
-
-df_audio_features_s_at_redund <- df_audio_features_cuanti %>% select(-c("energy", "loudness")) 
-
-df_audio_features_s_at_redund <- cbind(df_audio_features$track_name, df_audio_features_s_at_redund)
-
-
-#audio charts
-df_audio_charts_cuanti <- join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)]
-
-corr_charts <- cor(df_audio_charts_cuanti, use = "complete.obs")
-
-df_audio_charts_s_at_redund <- findCorrelation(corr_charts, cutoff=0.60, names=TRUE, verbose= TRUE)
-
-print(df_audio_charts_s_at_redund) # Energy y Loudnes tienen alta correlación con otras variables.
-                                  # Las borramos!
-
-df_audio_charts_s_at_redund <- df_audio_features_cuanti %>% select(-c("energy"))
-
-df_audio_charts_s_at_redund <- df_audio_charts_s_at_redund[complete.cases(df_audio_charts_s_at_redund) == TRUE,]
-
-x <- join_audio_charts[complete.cases(join_audio_charts) == TRUE,]
-df_audio_charts_s_at_redund <- cbind(x$track_name, df_audio_charts_s_at_redund)
-
-
-###################################################
-
-#                     CPA
+#                     CPA - AUDIO CHARTS
 
 ################################################
 
-df_audio_features_s_at_redund.PCA = prcomp(df_audio_features_s_at_redund[,2:ncol(df_audio_features_s_at_redund)], scale. = TRUE)
+df_audio_charts_s_at_redund.PCA = prcomp(df_audio_charts_s_at_redund[,2:6], scale. = TRUE)
 
-round(df_audio_features_s_at_redund.PCA$sdev^2,2)
+df_audio_charts_s_at_redund.PCA$rotation #autovectores de CPA
 
-round(df_audio_features_s_at_redund.PCA$center,2)
+summary(df_audio_charts_s_at_redund.PCA) #Primeros tres autovectores me explican el 70%
 
-round(df_audio_features_s_at_redund.PCA$scale,2)
 
-df_audio_features_s_at_redund.PCA$rotation #autovectores de CPA
 
-summary(df_audio_features_s_at_redund.PCA)
 
-carga1 = data.frame(cbind(X=1:length(df_audio_features_s_at_redund[,2:ncol(df_audio_features_s_at_redund)]), primeracarga=data.frame(df_audio_features_s_at_redund.PCA$rotation)[,1]))
+carga1 = data.frame(carga_1 = df_audio_charts_s_at_redund.PCA$rotation[,1])
+carga2 = data.frame(carga_2 = df_audio_charts_s_at_redund.PCA$rotation[,2])
+carga3 = data.frame(carga_3 = df_audio_charts_s_at_redund.PCA$rotation[,3])
 
-carga2 = data.frame(cbind(X=1:length(df_audio_features_s_at_redund[,2:ncol(df_audio_features_s_at_redund)]), primeracarga=data.frame(df_audio_features_s_at_redund.PCA$rotation)[,2]))
+print(round(cbind(carga1,carga2, carga3),2))
 
-print(round(cbind(carga1,carga2),2))
 
-ggplot(carga1, aes(X,primeracarga) ,
-       fill=tramo ) + geom_bar ( stat="identity" ,
-       position="dodge" ,
-       fill ="royalblue" ,
-       width =0.5 ) + xlab( 'Tramo' ) + ylab('Primeracarga ' )
+CP1 = as.matrix(df_audio_charts_s_at_redund[,2:6])%*%as.matrix(carga1[,"carga_1"])
+CP2 = as.matrix(df_audio_charts_s_at_redund[,2:6])%*%as.matrix(carga2[,"carga_2"])
+df_audio_charts_s_at_redund$CP1 = CP1
+df_audio_charts_s_at_redund$CP2 = CP2
+
+plot(df_audio_charts_s_at_redund$CP1, df_audio_charts_s_at_redund$CP2)
+
+ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=1,labels = datos_agrupados$carrera)
+
 
 ```
 
