@@ -17,7 +17,9 @@ library(lubridate)
 library(mice)
 library(randomForest)
 ```
-# Carga de bases
+# CARGA DE BASES 
+
+## Bases Igal
 ```{r}
 #dir igal
 df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
@@ -28,19 +30,26 @@ df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCE
  df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
 # # # 
  df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
+```
 
+## Bases Mateo
+```{r}
+df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
+df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
+df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
+```
 
+## Bases Nacho
+```{r}
 #dir Nacho
 df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
 df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
 df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
+```
 
-#dir Mateo
-df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
-df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
-df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
-
-#borro duplicados que quedaron en el aurio_features
+## Nueva Corrección duplicados
+```{r}
+#borro duplicados que quedaron en el audio_features
 #queda listo para el join con chrats
 df_audio_features <- df_audio_features %>% 
   group_by(track_name, external_urls_spotify) %>% 
@@ -50,12 +59,12 @@ df_audio_features <- df_audio_features %>%
   select(artist_name, artist_all, artist_key, everything(.)) %>% 
   distinct(artist_key, external_urls_spotify, .keep_all = T) %>% 
   as.data.frame()
-
 ```
 
 
+# ANALISIS DE NULOS
 ```{r}
-#Análisis de NA
+
 md.pattern(df_audio_features, rotate.names = TRUE) #faltan dos columas irrelevantes
 md.pattern(df_charts, rotate.names = TRUE)
 #md.pattern(df_artist, rotate.names = TRUE) #no tiene sentido con 1 sola columna
@@ -63,7 +72,7 @@ md.pattern(df_charts, rotate.names = TRUE)
 ```
 
 
-#Analisis de semanas y mercados
+# ANALISIS DE SEMANAS Y MERCADOS
 ```{r}
 #chequeo de semanas: tenemos 157 semanas en total, 200 temas por semana
 df_charts %>% mutate(week_number = week(week_start), 
@@ -89,7 +98,7 @@ summary(df_audio_features$cant_markets) #hay canciones en cero países. Están d
 # head(df_audio_features[1:300,], 300)
 ```
 
-#vectores de features
+# VECTORES DE FEATURES
 ```{r}
 #features var continuos
 features_continuas <- c('acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness',   'tempo', 'valence', 'cant_markets')
@@ -99,7 +108,7 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "albu
 #sacamos_market concat porque la pasamos a cantiddad de mercados
 ```
 
-#Join audio features y charts
+# JOIN `audio_features` Y `charts`
 ```{r}
 
 #Armamos un join para tener una tabla de charts con las caracteristicas de las canciones
@@ -123,7 +132,7 @@ x <- nrow(df_charts)- nrow(join_audio_charts)
 md.pattern(join_audio_charts, rotate.names = TRUE) #HAY CHARTS QUE NO TIENEN FEATURES. HAY QUE TENERLO EN CUENTA PARA EL ANÁLISIS
 ```
 
-# histogramas y barplots de variables 
+# HISTOGRAMAS Y BARPLOTS DE VARIABLES
 ```{r}
 
 ##histograma de las variables continuas de audio_features
@@ -178,7 +187,9 @@ for(i in features_categoricas){
 }
 
 
-
+###### 
+##Lo rehice abajo, perdón con la insistencia, je. 
+######
 
 #cantidad de veces que aparece cada país (lo sacamos porque na da nada interpretable)
 #vector <- unlist(strsplit(df_audio_features[1,"markets_concat"], split = ","))
@@ -186,11 +197,42 @@ for(i in features_categoricas){
 #x <- sort(x)
 #barplot(x, las=2)
 
-
-
 ```
 
-# Correlaciones
+## Analisis de la variable `markets_concat`
+
+```{r}
+#Hago un join al revés 
+
+df_chart_tojoin <- df_charts[,c("Track_Name", "Artist", "URL")]
+df_chart_tojoin$isinchart <- 1
+df_audio_features_tojoin <- df_audio_features[, c("track_name","artist_key","external_urls_spotify","markets_concat")]
+
+join_barplot <- df_audio_features_tojoin %>% 
+  select("track_name","artist_key","external_urls_spotify","markets_concat") %>% 
+  left_join( df_chart_tojoin %>%
+               select("Track_Name", "Artist", "URL","isinchart"),
+               by = c(
+                 "track_name" = "Track_Name", 
+                      "artist_key" ="Artist", 
+                      "external_urls_spotify" = "URL"))
+
+
+join_barplot$isinchart[is.na(join_barplot$isinchart)] <- 0
+
+join_barplot$isinchart <- factor(join_barplot$isinchart)
+
+tabla_isinchart <- table(unlist(lapply(join_barplot[join_barplot$isinchart==1,"markets_concat"], function(x) strsplit(as.character(x), ','))))
+
+tabla_notinchart <- table(unlist(lapply(join_barplot[join_barplot$isinchart==0,"markets_concat"], function(x) strsplit(as.character(x), ','))))
+
+par(mfrow = c(1,2))
+barplot(sort(tabla_isinchart, decreasing = TRUE), names.arg="", xlab='En Charts')
+barplot(sort(tabla_notinchart, decreasing = TRUE), names.arg = "", xlab='Fuera de Charts')
+```
+
+
+# CORRELACIONES
 ```{r}
 #análisis de correlación numericas
 
@@ -211,16 +253,21 @@ chisq.test(tabla_key_album)
 ```
 
 
-# Analisis de outliers
+# ANALISIS DE OUTLIERS UNIVARIADO
 
+
+## Revisión de Coeficiente de Variación Variables Numéricas
 ```{r}
-#Outlier univariado
-
 ## Metricas de variacion
+coef_var <- function(col){
+  media = abs(mean(col, na.rm = T))
+  stdv = sd(col, na.rm = T)
+  return(round(stdv/media,3))
+}
 
 #coeficiente de variacion audio_features
 cat("coeficiente de variacion\n")
-cv <- round(apply(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], 2, statip::cv, na_rm = T),2)
+cv <- apply(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], 2, coef_var)
 cv_features <- sort(cv, decreasing = T)
 
 cat("\ndesvio_standard\n")
@@ -230,7 +277,7 @@ desvio_standard[order(names(desvio_standard))]
 
 #coeficiente de variacion charts
 cat("coeficiente de variacion\n")
-cv <- round(apply(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], 2, statip::cv, na_rm = T),2)
+cv <- apply(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], 2, coef_var)
 cv_charts <- sort(cv, decreasing = T)
 
 cat("\ndesvio_standard\n")
@@ -243,14 +290,38 @@ as.data.frame(cbind(cv_features, cv_charts))
 
 ```
 
-## Boxplots (filtrado de outliers de duration_ms y loudness)
+## Boxplots Variables Numéricas sin filtra outliers
 ```{r}
-#método 1: boxplot. outlier = > 1.5 DIQ
-
 boxplot(scale(df_audio_features[,c(features_continuas_media, features_continuas_mediana)]), las=2)
 
 ```
 
+## Boxplots Variables Numéricas filtrando outliers por método del rango intercuartil
+
+```{r}
+
+sin_outliers_box <- function(col){
+  name <- col
+  col <- df_audio_features[,col]
+  iqr_col <- IQR(col)
+  cuartil1 <- quantile(col, na.rm = T, probs = c(0.25))
+  cuartil3 <- quantile(col, na.rm = T, probs = c(0.75))
+  conditions <- (col>cuartil1-1.5*iqr_col) & (col<cuartil3+1.5*iqr_col) 
+  bp <- boxplot(scale(col[conditions]), main=name, horizontal = T)
+  return(bp)
+}
+
+all_features <- c(features_continuas_media, features_continuas_mediana)
+
+par(mfrow=c(4,3))
+for (feature in all_features){
+  sin_outliers_box(feature)
+}
+
+```
+
+
+### Z-Score de Variables que "tienden a la normal"
 ```{r}
 
 ################################
@@ -264,14 +335,13 @@ boxplot(scale(df_audio_features[,c(features_continuas_media, features_continuas_
 
 #divido los features por su distribución
 features_continuas_media <- c('danceability', 'tempo', 'valence')
-
 df_audio_features_zscore_media <- df_audio_features[,features_continuas_media]
 
 #normalizo z score con las variables que tienden a la normal
 
 zscore_cols <- c()
 for(col in names(df_audio_features_zscore_media)){
-  name_col <- paste('zscore_',col)
+  name_col <- paste('zscore_',col, sep = "")
   zscore_cols <- append(zscore_cols, name_col)
   media <-  mean(df_audio_features_zscore_media[,col])
   stdv <- sd(df_audio_features_zscore_media[,col])
@@ -280,18 +350,45 @@ for(col in names(df_audio_features_zscore_media)){
 
 par(mfrow=c(1,length(zscore_cols)))
 lapply(zscore_cols, function(col) boxplot(df_audio_features_zscore_media[,col],xlab=col))
-
-# #analisis de z score
-# #variable: speechiness
-# umbral_zscore = 1
-# df_audio_features[df_audio_features_zscore_media$zscore_speechiness> umbral_zscore,] %>% 
-#   select(album_name,artist_name, speechiness ) %>% 
-#   arrange(-speechiness)
-
-
 ```
 
+### Analisis de Z-Score por variable
 
+#### Danceability
+
+```{r}
+#variable: danceability
+
+umbral_zscore <- 3
+conditions <- (df_audio_features_zscore_media$zscore_danceability> umbral_zscore) | (df_audio_features_zscore_media$zscore_danceability< -1*umbral_zscore)
+df_audio_features[conditions,] %>%
+  select(album_name,artist_name, danceability ) %>%
+  arrange(-danceability)
+```
+#### Tempo
+
+```{r}
+#variable: Tempo
+
+umbral_zscore <- 3
+conditions <- (df_audio_features_zscore_media$zscore_tempo> umbral_zscore) | (df_audio_features_zscore_media$zscore_tempo< -1*umbral_zscore)
+df_audio_features[conditions,] %>%
+  select(album_name,artist_name, tempo ) %>%
+  arrange(-tempo)
+```
+
+#### Valence
+
+```{r}
+#variable: valence
+umbral_zscore <- 3
+conditions <- (df_audio_features_zscore_media$zscore_valence> umbral_zscore) | (df_audio_features_zscore_media$zscore_valence< -1*umbral_zscore)
+df_audio_features[conditions,] %>%
+  select(album_name,artist_name, valence ) %>%
+  arrange(-valence)
+```
+
+### Z-Score Modificado de Variables Asimetricas
 
 ```{r}
 ################################
@@ -305,14 +402,26 @@ features_continuas_mediana <- c('acousticness', 'duration_ms', 'energy', 'instru
 df_audio_features_zscore_mediana <- df_audio_features[,features_continuas_mediana]
 
 
-for (i in 1:ncol(df_audio_features_zscore_mediana)){
-  med = median(df_audio_features_zscore_mediana[,i], na.rm = T)
-  MAD = median(abs(df_audio_features_zscore_mediana[,i] - med), na.rm = T)
-  df_audio_features_zscore_media[, i] <- 0.6745 * (df_audio_features_zscore_mediana[,i] - med) / MAD
-  }
+
+zscoremodif_cols <- c()
+for(col in names(df_audio_features_zscore_mediana)){
+  name_col <- paste('zscoremodif_',col, sep = "")
+  zscoremodif_cols <- append(zscoremodif_cols, name_col)
+  med = median(df_audio_features_zscore_mediana[,col], na.rm = T)
+  MAD = median(abs(df_audio_features_zscore_mediana[,col] - med), na.rm = T)
+  df_audio_features_zscore_mediana[, name_col] <- 0.6745 * (df_audio_features_zscore_mediana[,col] - med) / MAD
+}
+
+length(zscoremodif_cols)
+
+par(mfrow=c(4,2))
+lapply(zscoremodif_cols, function(col) boxplot(df_audio_features_zscore_mediana[,col],xlab=col, horizontal = T))
+
+```
 
 
-length(df_audio_features_zscore_media)
+```{r}
+
 #################################
 
 #analisis de outliers ¿quíenes son los que me voy a sacar de encima?
