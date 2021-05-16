@@ -423,6 +423,7 @@ carga3 = data.frame(carga_3 = df_audio_charts_s_at_redund.PCA$rotation[,3])
 
 print(round(cbind(carga1,carga2, carga3),2))
 
+#hola
 
 CP1 = as.matrix(df_audio_charts_s_at_redund[,2:6])%*%as.matrix(carga1[,"carga_1"])
 CP2 = as.matrix(df_audio_charts_s_at_redund[,2:6])%*%as.matrix(carga2[,"carga_2"])
