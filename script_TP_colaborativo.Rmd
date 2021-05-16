@@ -415,15 +415,11 @@ df_audio_charts_s_at_redund.PCA$rotation #autovectores de CPA
 summary(df_audio_charts_s_at_redund.PCA) #Primeros tres autovectores me explican el 70%
 
 
-
-
 carga1 = data.frame(carga_1 = df_audio_charts_s_at_redund.PCA$rotation[,1])
 carga2 = data.frame(carga_2 = df_audio_charts_s_at_redund.PCA$rotation[,2])
 carga3 = data.frame(carga_3 = df_audio_charts_s_at_redund.PCA$rotation[,3])
 
 print(round(cbind(carga1,carga2, carga3),2))
-
-#hola
 
 CP1 = as.matrix(df_audio_charts_s_at_redund[,2:6])%*%as.matrix(carga1[,"carga_1"])
 CP2 = as.matrix(df_audio_charts_s_at_redund[,2:6])%*%as.matrix(carga2[,"carga_2"])
@@ -441,28 +437,26 @@ ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=1
 
 ```{r}
 #outliers multivariados
+#Isolation Forest
 
-#método 1: distancias de lof
-df_audio_features_scale$lof_score <- lof(df_audio_features_scale, k=100)
-top_lof <- head(df_audio_features_scale[order(df_audio_features_scale$lof_score,decreasing = TRUE),],4)
-
-print(top_lof)
-
-```
-## Isolation Forest
-```{r}
 #método 2: isolation forest (categóticas y continuas)
 
 #ajusto el modelo
-iforest_sample = isolation.forest(df_audio_features_scale, sample_size = 10000, ntrees=100, ndim = 3, random_seed = 13)
+
+
+iforest_sample = isolation.forest(as.matrix(df_audio_charts_s_at_redund[,7:8]), sample_size = 800, ntrees=100, ndim = 2, random_seed = 1)
 
 #utilzo el metodo predict para calcula el score sobre todos los puntos
-df_audio_features_scale$iforest_pred= predict(iforest_sample, df_audio_features_scale)
+df_audio_charts_s_at_redund$iforest_pred = predict(iforest_sample, df_audio_charts_s_at_redund[,7:8])
 
 #que paises identifico?
-top_ifores_sample <- head(df_audio_features[order(df_audio_features_scale$iforest_pred,
-                                                  decreasing = T),], 10)
+top_ifores_sample <- head(df_audio_charts_s_at_redund[order(df_audio_charts_s_at_redund$iforest_pred, decreasing = T),], 200)
 print(top_ifores_sample)
+
+plot(df_audio_charts_s_at_redund$CP1, df_audio_charts_s_at_redund$CP2,
+     col=ifelse(df_audio_charts_s_at_redund$track_name %in% top_ifores_sample$track_name, "red", "green"))
+
+
 ```
 
 ```{r}
