@@ -353,7 +353,7 @@ lapply(zscore_cols, function(col) boxplot(df_audio_features_zscore_media[,col],x
 ```
 
 ### Analisis de Z-Score por variable
-
+ 
 #### Danceability
 
 ```{r}
