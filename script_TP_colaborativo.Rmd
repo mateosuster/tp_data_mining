@@ -16,6 +16,7 @@ library(Rlof)
 library(lubridate)
 library(mice)
 library(randomForest)
+library(sqldf)
 ```
 # CARGA DE BASES 
 
@@ -454,173 +455,135 @@ df_audio_features_filtrado <- df_audio_features %>%
 
 
 
+
 ```{r}
+###########################################
 
-###################################################
+# borro atributos redundantes. Paso 1
+#               correlograma
 
-#       BORRADO DE ATRIBUTOS REDUNDANTES
-
-################################################ 
-
-#audio features
-df_audio_features_cuanti <- df_audio_features[,c(features_continuas_media, features_continuas_mediana)]
-
-corr_audio_features <- cor(df_audio_features_cuanti, use = "complete.obs")
-df_audio_features_s_at_redund <- findCorrelation(corr_audio_features, cutoff=0.60, names=TRUE, verbose= TRUE)
-
-print(df_audio_features_s_at_redund) # Energy y Loudnes tienen alta correlación con otras variables.
-                        # Las borramos!
-
-df_audio_features_s_at_redund <- df_audio_features_cuanti %>% select(-c("energy", "loudness")) 
-
-df_audio_features_s_at_redund <- cbind(df_audio_features$track_name, df_audio_features_s_at_redund)
-
+#########################################
 
 #audio charts
-df_audio_charts_cuanti <- join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)]
+df_audio_charts_cuanti <- join_audio_charts[,c("track_name",audio_charts_continuas_media, audio_charts_continuas_mediana)]
 
-corr_charts <- cor(df_audio_charts_cuanti, use = "complete.obs")
+df_audio_charts_cuanti <- df_audio_charts_cuanti[complete.cases(df_audio_charts_cuanti) == TRUE,]
+
+df_audio_charts_cuanti <- df_audio_charts_cuanti %>% group_by(track_name) %>%
+                                                 mutate(Streams= max(Streams)) %>%
+                                                 distinct(track_name, .keep_all = TRUE)
+
+corr_charts <- cor(df_audio_charts_cuanti[,2:ncol(df_audio_charts_cuanti)])
 
 df_audio_charts_s_at_redund <- findCorrelation(corr_charts, cutoff=0.60, names=TRUE, verbose= TRUE)
 
-print(df_audio_charts_s_at_redund) # Energy y Loudnes tienen alta correlación con otras variables.
-                                  # Las borramos!
+print(df_audio_charts_s_at_redund) # Energy  tienen alta correlación con otras variables.
+                                  
+df_audio_charts_s_at_redund <- df_audio_charts_cuanti %>% select(-c("energy")) # La borramos!
 
-df_audio_charts_s_at_redund <- df_audio_features_cuanti %>% select(-c("energy"))
+# conclusión: chau energy, sucede porque es combinación de otras.
 
-df_audio_charts_s_at_redund <- df_audio_charts_s_at_redund[complete.cases(df_audio_charts_s_at_redund) == TRUE,]
+##########################################
 
-x <- join_audio_charts[complete.cases(join_audio_charts) == TRUE,]
-df_audio_charts_s_at_redund <- cbind(x$track_name, df_audio_charts_s_at_redund)
+#paso 2: busqueda de features con poca variabilidad
 
+#######################################
+
+lvf <-  df_audio_charts_s_at_redund[,2:ncol(df_audio_charts_s_at_redund)]
+
+#normalizo todas las variables entre 0 y 1
+for(i in 1:ncol(lvf)) {
+  lvf[,i] <- (lvf[,i]-min(lvf[,i]))/(max(lvf[,i])-min(lvf[,i]))
+}
+varianzas<-sort(round(apply(lvf, 2, var),4))
+
+df_audio_charts_s_at_redund <- cbind(track_name = df_audio_charts_s_at_redund$track_name, lvf)
+
+# Borro atributos con poca variablilidad:
+
+df_audio_charts_s_at_redund <- df_audio_charts_s_at_redund %>% select(-c("instrumentalness", "duration_ms", "Streams", "loudness", "speechiness", "liveness"))
+
+cor(df_audio_charts_s_at_redund[,2:6]) # hay baja correlacion entre ellas. buena limpieza!
+
+```
+
+
+
+
+```{r}
 
 ###################################################
 
-#                     CPA
+#                     CPA - AUDIO CHARTS
 
 ################################################
 
-df_audio_features_s_at_redund.PCA = prcomp(df_audio_features_s_at_redund[,2:ncol(df_audio_features_s_at_redund)], scale. = TRUE)
+df_audio_charts_s_at_redund.PCA = prcomp(df_audio_charts_s_at_redund[,2:6], scale. = TRUE)
 
-round(df_audio_features_s_at_redund.PCA$sdev^2,2)
+df_audio_charts_s_at_redund.PCA$rotation #autovectores de CPA
 
-round(df_audio_features_s_at_redund.PCA$center,2)
+summary(df_audio_charts_s_at_redund.PCA) #Primeros tres autovectores me explican el 70%
 
-round(df_audio_features_s_at_redund.PCA$scale,2)
 
-df_audio_features_s_at_redund.PCA$rotation #autovectores de CPA
+carga1 = data.frame(carga_1 = df_audio_charts_s_at_redund.PCA$rotation[,1])
+carga2 = data.frame(carga_2 = df_audio_charts_s_at_redund.PCA$rotation[,2])
+carga3 = data.frame(carga_3 = df_audio_charts_s_at_redund.PCA$rotation[,3])
 
-summary(df_audio_features_s_at_redund.PCA)
+print(round(cbind(carga1,carga2, carga3),2))
 
-carga1 = data.frame(cbind(X=1:length(df_audio_features_s_at_redund[,2:ncol(df_audio_features_s_at_redund)]), primeracarga=data.frame(df_audio_features_s_at_redund.PCA$rotation)[,1]))
+CP1 = as.matrix(df_audio_charts_s_at_redund[,2:6])%*%as.matrix(carga1[,"carga_1"])
+CP2 = as.matrix(df_audio_charts_s_at_redund[,2:6])%*%as.matrix(carga2[,"carga_2"])
+df_audio_charts_s_at_redund$CP1 = CP1
+df_audio_charts_s_at_redund$CP2 = CP2
 
-carga2 = data.frame(cbind(X=1:length(df_audio_features_s_at_redund[,2:ncol(df_audio_features_s_at_redund)]), primeracarga=data.frame(df_audio_features_s_at_redund.PCA$rotation)[,2]))
+plot(df_audio_charts_s_at_redund$CP1, df_audio_charts_s_at_redund$CP2)
 
-print(round(cbind(carga1,carga2),2))
+# PENDIENTE: ARMAR BIPLOT
+#ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=1,labels = datos_agrupados$carrera)
 
-ggplot(carga1, aes(X,primeracarga) ,
-       fill=tramo ) + geom_bar ( stat="identity" ,
-       position="dodge" ,
-       fill ="royalblue" ,
-       width =0.5 ) + xlab( 'Tramo' ) + ylab('Primeracarga ' )
 
 ```
 
 
 
 ```{r}
+
+######################################################################
+#                                                                    #
+#      Análisis de los datos (respuesta a  las preguntas del TP)     #
+#                                                                    #
+######################################################################
+
 #outliers multivariados
+#Isolation Forest
 
-#método 1: distancias de lof
-df_audio_features_scale$lof_score <- lof(df_audio_features_scale, k=100)
-top_lof <- head(df_audio_features_scale[order(df_audio_features_scale$lof_score,decreasing = TRUE),],4)
-
-print(top_lof)
-
-```
-## Isolation Forest
-```{r}
 #método 2: isolation forest (categóticas y continuas)
 
 #ajusto el modelo
-iforest_sample = isolation.forest(df_audio_features_scale, sample_size = 10000, ntrees=100, ndim = 3, random_seed = 13)
+
+
+iforest_sample = isolation.forest(as.matrix(df_audio_charts_s_at_redund[,7:8]), sample_size = 800, ntrees=100, ndim = 2, random_seed = 1)
 
 #utilzo el metodo predict para calcula el score sobre todos los puntos
-df_audio_features_scale$iforest_pred= predict(iforest_sample, df_audio_features_scale)
+df_audio_charts_s_at_redund$iforest_pred = predict(iforest_sample, df_audio_charts_s_at_redund[,7:8])
 
 #que paises identifico?
-top_ifores_sample <- head(df_audio_features[order(df_audio_features_scale$iforest_pred,
-                                                  decreasing = T),], 10)
+top_ifores_sample <- head(df_audio_charts_s_at_redund[order(df_audio_charts_s_at_redund$iforest_pred, decreasing = T),], 200)
 print(top_ifores_sample)
-```
 
-```{r}
+freq_outlier <- as.data.frame(table(join_audio_charts[join_audio_charts$track_name%in% top_ifores_sample$track_name,"track_name"]))
 
+summary(freq_outlier)
 
+freq_outlier_menos_de_10 <- freq_outlier[freq_outlier$Freq>50,]
 
-#método 3: mahalanobis
+#GRAFICO!!!
+plot(df_audio_charts_s_at_redund$CP1, df_audio_charts_s_at_redund$CP2,
+     col=ifelse(df_audio_charts_s_at_redund$track_name %in% top_ifores_sample$track_name, "red", "blue"),
+     pch=ifelse(df_audio_charts_s_at_redund$track_name %in% freq_outlier_menos_de_10$Var1,18,1),
+     cex=ifelse(df_audio_charts_s_at_redund$track_name %in% freq_outlier_menos_de_10$Var1,3,1))
 
-#audio_features
-df_audio_features_mahala <- df_audio_features
-vector_medias = colMeans(df_audio_features_mahala[,features_continuas]) 
-matriz_var_cov = cov(df_audio_features_mahala[,features_continuas])
-
-# Creamos una variable con la distancia
-df_audio_features_mahala$maha = sqrt(mahalanobis(df_audio_features_mahala[,features_continuas],vector_medias,matriz_var_cov))
-
-# Los registros mas distantes. criterio del bastón partido
-top_maha <- head(df_audio_features_mahala[order(df_audio_features_mahala$maha,decreasing = TRUE),],85)
-plot(top_maha$maha) #se observa que las distancias se achican mucho a partir de las 85 más distantes al centro
-unique(top_maha$artist_name)
-
-table(top_maha$artist_name)
-
-###############################
-
-#charts
-#audio_features
-join_audio_charts_mahala <- join_audio_charts
-vector_medias = colMeans(join_audio_charts_mahala[,features_continuas], na.rm = TRUE) 
-matriz_var_cov = cov(join_audio_charts_mahala[,features_continuas], use = "complete.obs")
-
-# Creamos una variable con la distancia
-join_audio_charts_mahala$maha = sqrt(mahalanobis(join_audio_charts_mahala[,features_continuas],vector_medias,matriz_var_cov))
-
-# Los registros mas distantes. criterio del bastón partido
-top_maha <- head(join_audio_charts_mahala[order(join_audio_charts_mahala$maha,decreasing = TRUE),],200)
-plot(top_maha$maha) #se observa que las distancias se achican mucho a partir de las 85 más distantes al centro
-x <- as.data.frame(table(top_maha$track_name))
-x <- x[order(-x$Freq),]
-x$Var1 <- as.character(x$Var1)
-print(x)
-
-class(x$Var1)
-
-y <- as.data.frame(table(join_audio_charts$track_name))
-y$Var1 <- as.character(y$Var1)
-
-outlier <- function(z){
-  
-  q <- y[y$Var1==z,"Freq"] #freq de aparicion en chart
-  print(y[y$Var1==z,"Freq"])
-  print (q)
-  
-  k <- x[x$Var1==z, "Freq"] #freq de aparicion en mahala
-  
-  j <- k/q 
-  
-  return (j)
-  }
-x$prop_outlier <- sapply(x[,"Var1"], outlier)
-
-x <- x[order(-x$prop_outlier),]
-
-hist(x$prop_outlier, breaks = 10, ylim=c(0,20), main = "Proporción de canciones outlier de un artista de las que están en el chart")
-
-nombre <- x$Var1
-join_audio_charts[join_audio_charts$track_name %in% nombre,]
-
-
+hist(freq_outlier$Freq)
 
 ```
 
@@ -633,11 +596,7 @@ join_audio_charts[join_audio_charts$track_name %in% nombre,]
 ## Patron Comun Canciones del Chart
 ¿Qué características tienen las canciones que están en el chart? ¿Cual es el patrón comun que tienen las canciones más escuchadas? (ver dispersiones, media, grafico comparativo)
 ```{r}
-######################################################################
-#                                                                    #
-#      Análisis de los datos (respuesta a  las preguntas del TP)     #
-#                                                                    #
-######################################################################
+
 
 #funcion para escalar variable
 scale_vble <- function(x){
