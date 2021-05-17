@@ -4,7 +4,7 @@ output: html_notebook
 ---
 
 
-```{r}
+```{r, warning=FALSE}
 library(corrplot)
 library(ggplot2)
 library(tidyverse)
@@ -16,7 +16,6 @@ library(Rlof)
 library(lubridate)
 library(mice)
 library(randomForest)
-library(sqldf)
 ```
 # CARGA DE BASES 
 
@@ -294,7 +293,6 @@ as.data.frame(cbind(cv_features, cv_charts))
 ## Boxplots Variables Numéricas sin filtra outliers
 ```{r}
 boxplot(scale(df_audio_features[,c(features_continuas_media, features_continuas_mediana)]), las=2)
-
 ```
 
 ## Boxplots Variables Numéricas filtrando outliers por método del rango intercuartil
@@ -413,7 +411,6 @@ for(col in names(df_audio_features_zscore_mediana)){
   df_audio_features_zscore_mediana[, name_col] <- 0.6745 * (df_audio_features_zscore_mediana[,col] - med) / MAD
 }
 
-length(zscoremodif_cols)
 
 par(mfrow=c(4,2))
 lapply(zscoremodif_cols, function(col) boxplot(df_audio_features_zscore_mediana[,col],xlab=col, horizontal = T))
