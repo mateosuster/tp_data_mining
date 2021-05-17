@@ -3,7 +3,7 @@ title: "R Notebook"
 output: html_notebook
 ---
 
-
+# LIBRERIAS
 ```{r, warning=FALSE}
 library(corrplot)
 library(ggplot2)
@@ -171,7 +171,7 @@ audio_charts_continuas_mediana <- c('danceability', 'acousticness', 'tempo', 'en
 for(i in features_categoricas){
 
   barplot(sort(table(df_audio_features[,i]),decreasing = T), las=2, 
-          main = paste("Barplot de", i))
+          main = paste("Barplot de", i, "(all data)"))
   # pie(table(df_features_categoricos[,i]))
 }
 
@@ -182,7 +182,7 @@ for(i in features_categoricas){
 for(i in features_categoricas){
   
   barplot(sort(table(join_audio_charts[,i]),decreasing = T), las=2, 
-          main = paste("Barplot de", i))
+          main = paste("Barplot de", i, "(charts)"))
   # pie(table(df_features_categoricos[,i]))
 }
 
@@ -238,11 +238,11 @@ barplot(sort(tabla_notinchart, decreasing = TRUE), names.arg = "", xlab='Fuera d
 
 #correlaciones en audio features
 x <- cor(df_audio_features[,c(features_continuas_media, features_continuas_mediana)],  use =  "complete.obs")
-corrplot(x, type = "upper", title = "Correlacion de atributos de audio", mar=c(0,0,1,0) )
+corrplot(x, type = "upper", title = "Correlacion de atributos de audio", mar=c(0,0,1,0), method="number" ,number.cex=0.7)
 
 #correlaciones en charts
 x <- cor(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], use =  "complete.obs")
-corrplot(x, type = "upper", title = "Correlacion de atributos de los Charts", mar=c(0,0,1,0), method="number" )
+corrplot(x, type = "upper", title = "Correlacion de atributos de los Charts", mar=c(0,0,1,0), method="number", number.cex=0.7 )
 
 #chi2 test #con n grande no se puede usar este test
 tabla_key_album <- table(df_audio_features$key_name, df_audio_features$album_type)
@@ -479,7 +479,7 @@ df_audio_features_filtrado <- df_audio_features %>%
 
 
 
-
+# Eliminacion atributos redundantes
 
 ```{r}
 ###########################################
@@ -500,7 +500,7 @@ df_audio_charts_cuanti <- df_audio_charts_cuanti %>% group_by(track_name) %>%
 
 corr_charts <- cor(df_audio_charts_cuanti[,2:ncol(df_audio_charts_cuanti)])
 
-df_audio_charts_s_at_redund <- findCorrelation(corr_charts, cutoff=0.60, names=TRUE, verbose= TRUE)
+df_audio_charts_s_at_redund <- caret::findCorrelation(corr_charts, cutoff=0.60, names=TRUE, verbose= TRUE)
 
 print(df_audio_charts_s_at_redund) # Energy  tienen alta correlación con otras variables.
                                   
@@ -828,5 +828,262 @@ boxplot(scale(df_audio_features[,features_continuas]), ylim=c(-5,5), las=3)
 
 ```
 
+
+## evolucion de los streams
+
+```{r}
+library(vars)
+
+df_charts %>% 
+   mutate(week_start=as.Date(week_start)) %>% 
+  group_by(week_start) %>% 
+  summarise(reproductions = sum(Streams)) %>% 
+  ggplot(aes(week_start, reproductions/10^6, color = "k", label = "Streams") )+
+  geom_line()+
+  geom_line(aes(x= week_start,y= rollmean(reproductions/10^6, 8, na.pad = T), color = "darkblue" , label = "Media movil" )  )+
+  # geom_point()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+        legend.position = "bottom")+
+  labs(title = "Cantidad total de reproducciones por semana de canciones del chart",
+       x = "Fecha", y ="Millones de reproducciones", fill = "Variable")+
+  scale_y_continuous(labels = scales::comma)+
+  scale_color_discrete(name = "Variable", labels = c("Media movil", "Streams"))
+
+
+#agregar media movil
+# cuanto duran los temas en el top 1 ??
+
+```
+```{r}
+df_charts %>% 
+   mutate(week_start=as.Date(week_start)) %>% 
+  filter(Position == 1 ) %>% 
+  group_by(week_start) %>% 
+  summarise(reproductions = sum(Streams)) %>% 
+  ggplot(aes(week_start, reproductions/10^6))+
+  geom_line()+
+  # geom_point()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  labs(title = "Cantidad total de reproducciones por semana de canciones del chart",
+       x = "Fecha", y ="Millones de reproducciones")+
+  scale_y_continuous(labels = scales::comma)
+```
+# ¿Cuánto tiempo tardan los temas en entrar en el chart?
+
+```{r}
+x <- df_charts %>% 
+  mutate(week_start=as.Date(week_start),
+         # week_end = as.Date(week_end),
+         week_year = (year(week_start))) %>%
+  group_by(Artist, Track_Name, URL) %>% 
+  summarise( day_in = min(week_start),
+             year_in = year(day_in)) %>% 
+  ungroup() %>% 
+  left_join(df_audio_features %>%
+              dplyr::select("artist_key","track_name", "external_urls_spotify",
+                    "album_release_date_precision", "album_release_date",,"album_release_year") %>%
+              mutate(album_release_date = as.Date(album_release_date)),
+            by = c(  "Track_Name"="track_name" ,
+                   "Artist"= "artist_key", "URL"=  "external_urls_spotify" )) %>% 
+  mutate( # tiempo_entrada_dias = day_in - album_release_date,
+         tiempo_entrada_dias = case_when(day_in < album_release_date ~ 0,
+                                         T ~ as.double(day_in - album_release_date)),
+         tiempo_entrada_anio = year_in - year(album_release_date)) %>% 
+  dplyr::select(Artist, Track_Name, album_release_date_precision,
+                    album_release_date, day_in, tiempo_entrada_dias, year_in,tiempo_entrada_anio)
+x %>% arrange(-tiempo_entrada_dias)
+
+```
+
+
+# ¿Cuánto tarda en alcanzar su pico? 
+
+```{r}
+x <- df_charts %>% 
+  mutate(week_start=as.Date(week_start),
+         week_year = (year(week_start))) %>%
+  filter(Position == 1) %>% 
+  group_by(Artist, Track_Name, URL) %>% 
+  summarise( day_podio = min(week_start),
+             year_podio = year(day_podio)) %>% 
+  ungroup() %>% 
+  left_join(df_charts %>% 
+              mutate(week_start=as.Date(week_start) ), 
+            by = c( "Track_Name" ,"Artist" , "URL" )  ) %>% 
+  group_by(Artist, Track_Name, URL, day_podio, year_podio) %>%
+  summarise( day_in = min(week_start),
+             year_in = year(day_in) ) %>% 
+  ungroup() %>% 
+  mutate(  tiempo_podio_dias = day_podio - day_in,
+         # tiempo_entrada_dias = case_when(day_in < album_release_date ~ 0,
+         #                                 T ~ as.double(day_in - album_release_date)),
+         tiempo_podio_anio = year_podio - year_in  )
+x %>% arrange(-tiempo_podio_dias)  
+
+```
+
+
+# ¿Cuánto tiempo están en un chart? 
+
+
+
+
+```{r}
+# cantidad de semanas que estuvieron en el chart
+
+df_charts %>% 
+  mutate(week_start=as.Date(week_start),
+         week_end = as.Date(week_end),
+         week_year = (year(week_start))) %>%
+  arrange(Artist, Track_Name) %>% 
+  group_by(Artist, Track_Name, URL) %>% 
+  summarise( day_in = min(week_start),
+             year_in = year(day_in),
+             day_max = max(week_end),
+             year_max = year(day_max),
+             duracion_chart_dias = day_max-day_in,
+             duracion_chart_anio = year_max - year_in)
+
+
+```
+
+
+## Evolucion de los temas en el chart desde el momento 0
+
+ Evolucion de las 5 canciones que hayan alcanzado el top 1 con mayores reproducciones
+ Evolucion de las 5 canciones no hayan superado el top 190 con menores reproducciones
+```{r}
+# indicador de popularidad
+popularidad <- df_charts %>% 
+  group_by(Artist, Track_Name, URL) %>% 
+  summarise(semanas_sum = n(),
+            streams_sum = (sum(Streams, na.rm = T)/10^6 ),
+            position_avg = mean(Position, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(indicador = as.numeric(streams_sum*semanas_sum/position_avg) )
+
+
+md.pattern(popularidad, rotate.names = TRUE)
+popularidad[is.na(popularidad$indicador),]
+```
+
+
+
+
+```{r}
+# panel de datos
+panel <- df_charts %>%  
+  # select(Artist, week_start, Position , Track_Name,  everything(.)) %>% 
+  arrange(Artist, Track_Name, week_start, Position) %>% 
+  group_by(Artist, Track_Name) %>% 
+  mutate(contador = 1:n()) %>% 
+  dplyr::select(Artist, week_start,contador, Position , Track_Name,  everything(.))
+panel
+
+
+#mas populares
+filtro_top <- slice_max(.data = popularidad, n = 10, order_by = indicador)
+panel %>% 
+  mutate(week_start = as.Date(week_start)) %>% 
+  filter(URL %in% filtro_top$URL) %>%
+  ggplot(aes(week_start, -Position, color = URL)) +
+  geom_point()+
+  geom_line()+
+  # geom_smooth()+
+  theme(legend.position = "none") +
+  labs(title = "Dinámica de las canciones más populares", subtitle = "Basado en indicador definido anteriormente",
+       x = "Fecha", y = "Posición (en negativo)")
+
+# cantidad reproducciones
+filtro_top <- slice_max(.data = popularidad, n = 5, order_by = streams_sum)
+panel %>% 
+  mutate(week_start = as.Date(week_start)) %>% 
+  filter(URL %in% filtro_top$URL) %>%
+  ggplot(aes(week_start, -Position, color = URL)) +
+  geom_point()+
+  geom_line()+
+  # geom_smooth()+
+  theme(legend.position = "none") +
+  labs(title = "Dinámica de las canciones con mayor reproducciones",
+       x = "Fecha", y = "Posición (en negativo)")
+
+
+#mayor cantidad de semanas
+filtro_top <- slice_max(.data = popularidad, n = 7, order_by = semanas_sum)
+panel %>% 
+  mutate(week_start = as.Date(week_start)) %>% 
+  filter(URL %in% filtro_top$URL) %>%
+  ggplot(aes(week_start, -Position, color = URL)) +
+  geom_point()+
+  geom_line()+
+  # geom_smooth()+
+  theme(legend.position = "none") +
+  labs(title = "Dinámica de las canciones con mayor prescencia en el chart",
+       subtitle = "En cantidad de semanas",
+       x = "Fecha", y = "Posición (en negativo)")
+
+
+###########################################
+ # MENORES
+###########################################
+
+#canciones menos populares
+filtro_min <- slice_min(.data = popularidad, n = 150, order_by = c(indicador))
+panel %>% 
+  mutate(week_start = as.Date(week_start)) %>% 
+  filter(URL %in% filtro_min$URL) %>%
+  ggplot(aes(week_start, -Position, color = URL)) +
+  geom_point()+
+  geom_line()+
+  # geom_smooth()+
+  theme(legend.position = "none") +
+  labs(title = "Dinámica de las canciones menos populares", subtitle = "Basado en indicador definido anteriormente",
+       x = "Fecha", y = "Posición (en negativo)")
+
+
+# menor cantidad reproducciones
+filtro_min <- slice_min(.data = popularidad, n = 20, order_by = streams_sum)
+panel %>% 
+  mutate(week_start = as.Date(week_start)) %>% 
+  filter(URL %in% filtro_min$URL) %>%
+  ggplot(aes(week_start, -Position, color = URL)) +
+  geom_point()+
+  geom_line()+
+  # geom_smooth()+
+  theme(legend.position = "none") +
+  labs(title = "Dinámica de las canciones con menores reproducciones",
+       x = "Fecha", y = "Posición (en negativo)")
+
+# menor cantidad reproducciones
+filtro_min <- slice_min(.data = popularidad, n = 5, order_by = semanas_sum)
+panel %>% 
+  mutate(week_start = as.Date(week_start)) %>% 
+  filter(URL %in% filtro_min$URL) %>%
+  ggplot(aes(week_start, -Position, color = URL)) +
+  geom_point()+
+  geom_line()+
+  # geom_smooth()+
+  theme(legend.position = "none") +
+  labs(title = "Dinámica de las canciones con menores reproducciones",
+       x = "Fecha", y = "Posición (en negativo)")
+
+
+```
+
+
+
+
+## ¿Qué características tienen las bandas que solo una vez se pudieron meter en el ranking?
+```{r}
+# cantidad de bandas que se metieron una sola vez en el ranking
+# unique((df_charts %>% 
+unique((join_audio_charts %>% 
+  group_by(artist_key) %>% 
+  # group_by(Artist) %>% 
+  summarise(n = n()) %>% 
+  arrange(n) %>% 
+  filter(n ==1))$artist_key)
+
+```
 
 
