@@ -418,6 +418,34 @@ lapply(zscoremodif_cols, function(col) boxplot(df_audio_features_zscore_mediana[
 ```
 
 
+#### Revisión Variable `Instrumentalness`
+```{r}
+instrumentalness <- c("instrumentalness", "zscoremodif_instrumentalness") 
+
+x <- df_audio_features$instrumentalness
+
+n_interv <- 8
+
+
+intervalos <- round(seq(0,max(x),by=(max(x)-min(x))/n_interv),2)
+
+labs <- c()
+for (i in 1:n_interv){
+lab <- paste(intervalos[i],intervalos[i+1], sep='\n')
+labs <- append(labs, lab)
+    
+}
+
+bins <- cut(x, n_interv, include.lowest = TRUE, labels = labs)
+
+barplot(table(bins))
+
+```
+
+
+
+
+
 ```{r}
 
 #################################
