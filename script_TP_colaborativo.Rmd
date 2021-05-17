@@ -171,7 +171,7 @@ audio_charts_continuas_mediana <- c('danceability', 'acousticness', 'tempo', 'en
 for(i in features_categoricas){
 
   barplot(sort(table(df_audio_features[,i]),decreasing = T), las=2, 
-          main = paste("Barplot de", i))
+          main = paste("Barplot de", i, "(all data)"))
   # pie(table(df_features_categoricos[,i]))
 }
 
@@ -182,7 +182,7 @@ for(i in features_categoricas){
 for(i in features_categoricas){
   
   barplot(sort(table(join_audio_charts[,i]),decreasing = T), las=2, 
-          main = paste("Barplot de", i))
+          main = paste("Barplot de", i, "(charts)"))
   # pie(table(df_features_categoricos[,i]))
 }
 
@@ -238,11 +238,11 @@ barplot(sort(tabla_notinchart, decreasing = TRUE), names.arg = "", xlab='Fuera d
 
 #correlaciones en audio features
 x <- cor(df_audio_features[,c(features_continuas_media, features_continuas_mediana)],  use =  "complete.obs")
-corrplot(x, type = "upper", title = "Correlacion de atributos de audio", mar=c(0,0,1,0) )
+corrplot(x, type = "upper", title = "Correlacion de atributos de audio", mar=c(0,0,1,0), method="number" ,number.cex=0.7)
 
 #correlaciones en charts
 x <- cor(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], use =  "complete.obs")
-corrplot(x, type = "upper", title = "Correlacion de atributos de los Charts", mar=c(0,0,1,0), method="number" )
+corrplot(x, type = "upper", title = "Correlacion de atributos de los Charts", mar=c(0,0,1,0), method="number", number.cex=0.7 )
 
 #chi2 test #con n grande no se puede usar este test
 tabla_key_album <- table(df_audio_features$key_name, df_audio_features$album_type)
