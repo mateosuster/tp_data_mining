@@ -116,7 +116,7 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "albu
 join_audio_charts <- df_audio_features %>% 
   select("artist_name","artist_all","artist_key",
          "track_name", "external_urls_spotify",
-         features_continuas, features_categoricas) %>% 
+         all_of(features_continuas), all_of(features_categoricas)) %>% 
   right_join( df_charts %>%
                select( "Track_Name", "Artist", 
                        "URL","Position", "Streams", "week_start", "week_end"),
