@@ -562,17 +562,14 @@ carga3 = data.frame(carga_3 = df_audio_charts_s_at_redund.PCA$rotation[,3])
 print(round(cbind(carga1,carga2, carga3),2))
 
 #valores que tomarian las componentes
-CP1 = as.matrix(df_audio_charts_s_at_redund[,2:6]) %*% as.matrix(carga1[,"carga_1"])
-CP2 = as.matrix(df_audio_charts_s_at_redund[,2:6])%*% as.matrix(carga2[,"carga_2"])
-df_audio_charts_s_at_redund$CP1 = CP1
-df_audio_charts_s_at_redund$CP2 = CP2
 
-plot(df_audio_charts_s_at_redund$CP1, df_audio_charts_s_at_redund$CP2)
+CP1 = as.matrix(scale(df_audio_charts_s_at_redund[,2:6])) %*% as.matrix(carga1[,"carga_1"])
+CP2 = as.matrix(scale(df_audio_charts_s_at_redund[,2:6]))%*% as.matrix(carga2[,"carga_2"])
+
+plot(CP1, CP2)
 
 # BIPLOT
 ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=0.05)
-
-
 
 ```
 
@@ -592,18 +589,19 @@ ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=0
 #método 2: isolation forest (categóticas y continuas)
 
 #ajusto el modelo
+df_audio_charts_s_at_redund_scale <-  data.frame(df_audio_charts_s_at_redund[,1],
+                                            scale(df_audio_charts_s_at_redund[,2:6]))
 
-
-iforest_sample = isolation.forest(as.matrix(df_audio_charts_s_at_redund[,2:(ncol(df_audio_charts_s_at_redund))-2]),
+iforest_sample = isolation.forest(as.matrix(df_audio_charts_s_at_redund_scale[,2:6]),
                                   sample_size = 800, ntrees=100, ndim = 2, random_seed = 1)
 
 #utilzo el metodo predict para calcula el score sobre todos los puntos
-df_audio_charts_s_at_redund$iforest_pred = predict(iforest_sample,
-                                                   df_audio_charts_s_at_redund[,2:(ncol(df_audio_charts_s_at_redund))-2])
+df_audio_charts_s_at_redund_scale$iforest_pred = predict(iforest_sample,
+                                                   df_audio_charts_s_at_redund_scale)
 
 #que paises identifico?
-top_ifores_sample <- head(df_audio_charts_s_at_redund[order(df_audio_charts_s_at_redund$iforest_pred, decreasing = T),],
-                          200)
+top_ifores_sample <- head(df_audio_charts_s_at_redund_scale[order(df_audio_charts_s_at_redund_scale$iforest_pred,
+                                                                  decreasing = T),],200)
 print(top_ifores_sample)
 
 freq_outlier <- as.data.frame(table(join_audio_charts[join_audio_charts$track_name%in%
@@ -614,10 +612,10 @@ summary(freq_outlier)
 freq_outlier_menos_de_10 <- freq_outlier[freq_outlier$Freq>50,]
 
 #GRAFICO!!!
-plot(df_audio_charts_s_at_redund$CP1, df_audio_charts_s_at_redund$CP2,
+plot(CP1, CP2,
      col=ifelse(df_audio_charts_s_at_redund$track_name %in% top_ifores_sample$track_name, "red", "blue"),
      pch=ifelse(df_audio_charts_s_at_redund$track_name %in% freq_outlier_menos_de_10$Var1,18,1),
-     cex=ifelse(df_audio_charts_s_at_redund$track_name %in% freq_outlier_menos_de_10$Var1,3,1))
+     cex=ifelse(df_audio_charts_s_at_redund$track_name %in% freq_outlier_menos_de_10$Var1,2,1))
 
 hist(freq_outlier$Freq)
 
@@ -685,6 +683,7 @@ nrow(anti_join_audio_charts_complete_scale)
 ### Histogramas comparativos
 (comentar o descomentar segun se trate de la comparacion de los features de los temas del chart vs todos o solo vs no charts)
 ```{r}
+# par(mfrow=c(4,3))
 for (i in features_continuas) {
   print(join_audio_charts_complete_scale %>%
             mutate(is_chart = "chart") %>%
