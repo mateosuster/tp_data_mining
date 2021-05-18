@@ -490,7 +490,8 @@ df_audio_features_filtrado <- df_audio_features %>%
 #########################################
 
 #audio charts
-df_audio_charts_cuanti <- join_audio_charts[,c("track_name",audio_charts_continuas_media, audio_charts_continuas_mediana)]
+df_audio_charts_cuanti <- join_audio_charts[,c("external_urls_spotify", "track_name",
+                                               audio_charts_continuas_media, audio_charts_continuas_mediana)]
 
 df_audio_charts_cuanti <- df_audio_charts_cuanti[complete.cases(df_audio_charts_cuanti) == TRUE,]
 
@@ -498,7 +499,7 @@ df_audio_charts_cuanti <- df_audio_charts_cuanti %>% group_by(track_name) %>%
                                                  mutate(Streams= max(Streams)) %>%
                                                  distinct(track_name, .keep_all = TRUE)
 
-corr_charts <- cor(df_audio_charts_cuanti[,2:ncol(df_audio_charts_cuanti)])
+corr_charts <- cor(df_audio_charts_cuanti[,3:ncol(df_audio_charts_cuanti)])
 
 df_audio_charts_s_at_redund <- caret::findCorrelation(corr_charts, cutoff=0.60, names=TRUE, verbose= TRUE)
 
@@ -514,7 +515,7 @@ df_audio_charts_s_at_redund <- df_audio_charts_cuanti %>% select(-c("energy")) #
 
 #######################################
 
-lvf <-  df_audio_charts_s_at_redund[,2:ncol(df_audio_charts_s_at_redund)]
+lvf <-  df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)]
 
 #normalizo todas las variables entre 0 y 1
 for(i in 1:ncol(lvf)) {
@@ -533,7 +534,7 @@ df_audio_charts_s_at_redund <- df_audio_charts_s_at_redund %>%
   select(-c("instrumentalness", "duration_ms", "Streams", "loudness", "speechiness", "liveness"))
 
 # cor(df_audio_charts_s_at_redund[,2:6]) # hay baja correlacion entre ellas. buena limpieza!
-cor(df_audio_charts_s_at_redund[,2:ncol(df_audio_charts_s_at_redund)], use = "complete.obs") 
+cor(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)], use = "complete.obs") 
 ```
 
 
@@ -547,7 +548,7 @@ cor(df_audio_charts_s_at_redund[,2:ncol(df_audio_charts_s_at_redund)], use = "co
 
 ################################################
 
-df_audio_charts_s_at_redund.PCA = prcomp(df_audio_charts_s_at_redund[,2:(ncol(df_audio_charts_s_at_redund))], 
+df_audio_charts_s_at_redund.PCA = prcomp(df_audio_charts_s_at_redund[,3:(ncol(df_audio_charts_s_at_redund))], 
                                          scale. = TRUE)
 
 df_audio_charts_s_at_redund.PCA$rotation #autovectores de CPA
@@ -563,8 +564,10 @@ print(round(cbind(carga1,carga2, carga3),2))
 
 #valores que tomarian las componentes
 
-CP1 = as.matrix(scale(df_audio_charts_s_at_redund[,2:6])) %*% as.matrix(carga1[,"carga_1"])
-CP2 = as.matrix(scale(df_audio_charts_s_at_redund[,2:6]))%*% as.matrix(carga2[,"carga_2"])
+CP1 = as.matrix(scale(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)])) %*%
+  as.matrix(carga1[,"carga_1"])
+CP2 = as.matrix(scale(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)]))%*% 
+  as.matrix(carga2[,"carga_2"])
 
 plot(CP1, CP2)
 
@@ -589,10 +592,10 @@ ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=0
 #método 2: isolation forest (categóticas y continuas)
 
 #ajusto el modelo
-df_audio_charts_s_at_redund_scale <-  data.frame(df_audio_charts_s_at_redund[,1],
-                                            scale(df_audio_charts_s_at_redund[,2:6]))
+df_audio_charts_s_at_redund_scale <-  data.frame(df_audio_charts_s_at_redund[,1:2],
+                                            scale(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)]))
 
-iforest_sample = isolation.forest(as.matrix(df_audio_charts_s_at_redund_scale[,2:6]),
+iforest_sample = isolation.forest(as.matrix(df_audio_charts_s_at_redund_scale[,2:ncol(df_audio_charts_s_at_redund)]),
                                   sample_size = 800, ntrees=100, ndim = 2, random_seed = 1)
 
 #utilzo el metodo predict para calcula el score sobre todos los puntos
@@ -604,8 +607,8 @@ top_ifores_sample <- head(df_audio_charts_s_at_redund_scale[order(df_audio_chart
                                                                   decreasing = T),],200)
 print(top_ifores_sample)
 
-freq_outlier <- as.data.frame(table(join_audio_charts[join_audio_charts$track_name%in%
-                                                        top_ifores_sample$track_name,"track_name"]))
+freq_outlier <- as.data.frame(table(join_audio_charts[join_audio_charts$external_urls_spotify%in%
+                                                        top_ifores_sample$external_urls_spotify,"track_name"]))
 
 summary(freq_outlier)
 
