@@ -477,7 +477,7 @@ df_audio_features_filtrado <- df_audio_features %>%
 
 ```
 
-
+#preguntas!
 
 # ELIMINACION ATRIBUTOS REDUNDANTES
 
