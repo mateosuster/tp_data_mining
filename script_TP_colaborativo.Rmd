@@ -63,12 +63,17 @@ df_audio_features <- df_audio_features %>%
 
 
 # ANALISIS DE NULOS
-```{r}
 
+## Nulos en df_audio_features
+```{r}
 md.pattern(df_audio_features, rotate.names = TRUE) #faltan dos columas irrelevantes
+
+```
+
+## Nulos en df_charts
+```{r}
 md.pattern(df_charts, rotate.names = TRUE)
 #md.pattern(df_artist, rotate.names = TRUE) #no tiene sentido con 1 sola columna
-
 ```
 
 
@@ -116,7 +121,7 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "albu
 join_audio_charts <- df_audio_features %>% 
   select("artist_name","artist_all","artist_key",
          "track_name", "external_urls_spotify",
-         features_continuas, features_categoricas) %>% 
+         all_of(features_continuas), all_of(features_categoricas)) %>% 
   right_join( df_charts %>%
                select( "Track_Name", "Artist", 
                        "URL","Position", "Streams", "week_start", "week_end"),
@@ -187,16 +192,6 @@ for(i in features_categoricas){
 }
 
 
-###### 
-##Lo rehice abajo, perdón con la insistencia, je. 
-######
-
-#cantidad de veces que aparece cada país (lo sacamos porque na da nada interpretable)
-#vector <- unlist(strsplit(df_audio_features[1,"markets_concat"], split = ","))
-#x <- table (vector)
-#x <- sort(x)
-#barplot(x, las=2)
-
 ```
 
 ## Analisis de la variable `markets_concat`
@@ -226,10 +221,16 @@ tabla_isinchart <- table(unlist(lapply(join_barplot[join_barplot$isinchart==1,"m
 
 tabla_notinchart <- table(unlist(lapply(join_barplot[join_barplot$isinchart==0,"markets_concat"], function(x) strsplit(as.character(x), ','))))
 
-par(mfrow = c(1,2))
-barplot(sort(tabla_isinchart, decreasing = TRUE), names.arg="", xlab='En Charts')
-barplot(sort(tabla_notinchart, decreasing = TRUE), names.arg = "", xlab='Fuera de Charts')
+options(scipen=999)
+par(mfrow = c(1,2), las=1)
+barplot(sort(tabla_isinchart, decreasing = TRUE), names.arg="", xlab='En Charts',col=rgb(0.2,0.4,0.6,0.6), )
+barplot(sort(tabla_notinchart, decreasing = TRUE), names.arg = "", xlab='Fuera de Charts',col=rgb(0.2,0.4,0.6,0.6))
 ```
+
+```{r}
+in_chart <- as.data.frame(tabla_isinchart)
+```
+
 
 
 # CORRELACIONES
@@ -290,8 +291,14 @@ as.data.frame(cbind(cv_features, cv_charts))
 
 ```
 
-## Boxplots Variables Numéricas sin filtra outliers
+## Boxplots Variables Numéricas sin filtrar outliers
 ```{r}
+#divido los features por su distribución
+features_continuas_media <- c('danceability', 'tempo', 'valence')
+
+features_continuas_mediana <- c('acousticness', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness', 'cant_markets')
+
+
 boxplot(scale(df_audio_features[,c(features_continuas_media, features_continuas_mediana)]), las=2)
 ```
 
@@ -306,7 +313,7 @@ sin_outliers_box <- function(col){
   cuartil1 <- quantile(col, na.rm = T, probs = c(0.25))
   cuartil3 <- quantile(col, na.rm = T, probs = c(0.75))
   conditions <- (col>cuartil1-1.5*iqr_col) & (col<cuartil3+1.5*iqr_col) 
-  bp <- boxplot(scale(col[conditions]), main=name, horizontal = T)
+  bp <- boxplot(col[conditions], main=name, horizontal = T)
   return(bp)
 }
 
@@ -318,6 +325,14 @@ for (feature in all_features){
 }
 
 ```
+
+`instrumentalness` tiene mucho sesgo la variable. Quizás sirva discretizar la variable.  
+
+```{r}
+hist(1/sqrt(df_audio_features$instrumentalness), main="Instrumentalness", xlab = '')
+```
+
+
 
 
 ### Z-Score de Variables que "tienden a la normal"
@@ -364,6 +379,7 @@ df_audio_features[conditions,] %>%
   select(album_name,artist_name, danceability ) %>%
   arrange(-danceability)
 ```
+
 #### Tempo
 
 ```{r}
@@ -424,7 +440,7 @@ instrumentalness <- c("instrumentalness", "zscoremodif_instrumentalness")
 
 x <- df_audio_features$instrumentalness
 
-n_interv <- 8
+n_interv <- 10
 
 
 intervalos <- round(seq(0,max(x),by=(max(x)-min(x))/n_interv),2)
@@ -442,6 +458,39 @@ barplot(table(bins))
 
 ```
 
+Hacemos K-means para poder discretizar la variable. 
+
+```{r}
+sse <- c()
+for (k in 2:6){
+  clusters <- kmeans(df_audio_features$instrumentalness,centers = k, iter.max = 10, nstart = k)
+  sse <- append(sse, clusters$tot.withinss)
+}
+
+plot(2:6,sse, type = 'l', xlab='Cantidad de Clusters', ylab='Suma Error Cuadrático')
+
+#k=3 
+clusters3 <- kmeans(df_audio_features$instrumentalness,centers = 3, iter.max = 10, nstart = 3)
+
+df_audio_features$clusters <- factor(clusters3$cluster)
+
+lev <- levels(df_audio_features$clusters)
+
+labs <- c()
+for (i in lev){
+  min <- min(df_audio_features$instrumentalness[df_audio_features$clusters==i])
+  max <- max(df_audio_features$instrumentalness[df_audio_features$clusters==i])
+  lab <- paste(min,max, sep=' - ')
+  labs <- append(labs, lab)
+}
+
+labs
+
+barplot(table(factor(clusters3$cluster)), labels = labs)
+
+
+
+```
 
 
 
@@ -477,7 +526,7 @@ barplot(table(bins))
 
 ```
 
-
+#preguntas!
 
 # ELIMINACION ATRIBUTOS REDUNDANTES
 
