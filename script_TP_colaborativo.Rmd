@@ -22,14 +22,14 @@ library(randomForest)
 ## Bases Igal
 ```{r}
 #dir igal
-df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
-# 
-#borrado de duplicados que quedaron
-# 
-# # # 
- df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
-# # # 
- df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
+# df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
+# # 
+# #borrado de duplicados que quedaron
+# # 
+# # # # 
+#  df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
+# # # # 
+#  df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
 ```
 
 ## Bases Mateo
@@ -42,9 +42,9 @@ df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 ## Bases Nacho
 ```{r}
 #dir Nacho
-df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
-df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
-df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
+# df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
+# df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
+# df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
 ```
 
 ## Nueva Corrección duplicados
@@ -502,23 +502,23 @@ barplot(table(factor(clusters3$cluster)), labels = labs)
 #analisis de outliers ¿quíenes son los que me voy a sacar de encima?
 
 #cuantos artistas
-length(unique(df_audio_features["artist_name"][df_audio_features$duration_ms < duration.bigote.inferior,]))
-
-#observo nuevo boxplot con outliers filtados de duration_ms
-boxplot(df_audio_features["duration_ms"][df_audio_features["duration_ms"] <= duration.bigote.superior ])
-
-#calculo umbral para loudness
-loudness.bigote.inferior <- boxplot(df_audio_features$loudness)$stats[1]
-
-#guardo nuevo dataset filtrado (nro instancias 140k, perdemos 16k registros )
-df_audio_features_filtrado <- df_audio_features %>% 
-  filter(duration_ms <= duration.bigote.superior &
-         loudness >= loudness.bigote.inferior)
-
-####################################
-
-#
-# nuevo boxplot con las variables filtradas
+# length(unique(df_audio_features["artist_name"][df_audio_features$duration_ms < duration.bigote.inferior,]))
+# 
+# #observo nuevo boxplot con outliers filtados de duration_ms
+# boxplot(df_audio_features["duration_ms"][df_audio_features["duration_ms"] <= duration.bigote.superior ])
+# 
+# #calculo umbral para loudness
+# loudness.bigote.inferior <- boxplot(df_audio_features$loudness)$stats[1]
+# 
+# #guardo nuevo dataset filtrado (nro instancias 140k, perdemos 16k registros )
+# df_audio_features_filtrado <- df_audio_features %>% 
+#   filter(duration_ms <= duration.bigote.superior &
+#          loudness >= loudness.bigote.inferior)
+# 
+# ####################################
+# 
+# #
+# # nuevo boxplot con las variables filtradas
 
 ####################################
 
@@ -621,7 +621,7 @@ CP2 = as.matrix(scale(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_r
 plot(CP1, CP2)
 
 # BIPLOT
-ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=0.05)
+ggbiplot::ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=0.05)
 
 ```
 
@@ -644,7 +644,7 @@ ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=0
 df_audio_charts_s_at_redund_scale <-  data.frame(df_audio_charts_s_at_redund[,1:2],
                                             scale(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)]))
 
-iforest_sample = isolation.forest(as.matrix(df_audio_charts_s_at_redund_scale[,2:ncol(df_audio_charts_s_at_redund)]),
+iforest_sample = isotree::isolation.forest(as.matrix(df_audio_charts_s_at_redund_scale[,2:ncol(df_audio_charts_s_at_redund)]),
                                   sample_size = 800, ntrees=100, ndim = 2, random_seed = 1)
 
 #utilzo el metodo predict para calcula el score sobre todos los puntos
@@ -828,7 +828,7 @@ data.frame(cv_chart, cv_no_chart) %>%
 ```{r}
 join_audio_charts %>% 
   group_by(artist_name) %>% 
-  summarise(n = n()) %>% 
+  dplyr::summarise(n = n()) %>% 
   arrange(-n)
 ```
 
@@ -836,7 +836,7 @@ join_audio_charts %>%
 ```{r}
 join_audio_charts %>% 
   group_by(track_name, artist_name,external_urls_spotify) %>% 
-  summarise(n = n()) %>% 
+  dplyr::summarise(n = n()) %>% 
   arrange(-n) %>% 
   select(track_name, n, everything(.))
 
@@ -902,7 +902,7 @@ library(vars)
 df_charts %>% 
    mutate(week_start=as.Date(week_start)) %>% 
   group_by(week_start) %>% 
-  summarise(reproductions = sum(Streams)) %>% 
+  dplyr::summarise(reproductions = sum(Streams)) %>% 
   ggplot(aes(week_start, reproductions/10^6, color = "k", label = "Streams") )+
   geom_line()+
   geom_line(aes(x= week_start,y= rollmean(reproductions/10^6, 8, na.pad = T), color = "darkblue" , label = "Media movil" )  )+
@@ -924,7 +924,7 @@ df_charts %>%
    mutate(week_start=as.Date(week_start)) %>% 
   filter(Position == 1 ) %>% 
   group_by(week_start) %>% 
-  summarise(reproductions = sum(Streams)) %>% 
+  dplyr::summarise(reproductions = sum(Streams)) %>% 
   ggplot(aes(week_start, reproductions/10^6))+
   geom_line()+
   # geom_point()+
@@ -941,7 +941,7 @@ x <- df_charts %>%
          # week_end = as.Date(week_end),
          week_year = (year(week_start))) %>%
   group_by(Artist, Track_Name, URL) %>% 
-  summarise( day_in = min(week_start),
+  dplyr::summarise( day_in = min(week_start),
              year_in = year(day_in)) %>% 
   ungroup() %>% 
   left_join(df_audio_features %>%
@@ -969,14 +969,14 @@ x <- df_charts %>%
          week_year = (year(week_start))) %>%
   filter(Position == 1) %>% 
   group_by(Artist, Track_Name, URL) %>% 
-  summarise( day_podio = min(week_start),
+  dplyr::summarise( day_podio = min(week_start),
              year_podio = year(day_podio)) %>% 
   ungroup() %>% 
   left_join(df_charts %>% 
               mutate(week_start=as.Date(week_start) ), 
             by = c( "Track_Name" ,"Artist" , "URL" )  ) %>% 
   group_by(Artist, Track_Name, URL, day_podio, year_podio) %>%
-  summarise( day_in = min(week_start),
+  dplyr::summarise( day_in = min(week_start),
              year_in = year(day_in) ) %>% 
   ungroup() %>% 
   mutate(  tiempo_podio_dias = day_podio - day_in,
@@ -1002,7 +1002,7 @@ df_charts %>%
          week_year = (year(week_start))) %>%
   arrange(Artist, Track_Name) %>% 
   group_by(Artist, Track_Name, URL) %>% 
-  summarise( day_in = min(week_start),
+ dplyr:: summarise( day_in = min(week_start),
              year_in = year(day_in),
              day_max = max(week_end),
              year_max = year(day_max),
@@ -1021,7 +1021,7 @@ df_charts %>%
 # indicador de popularidad
 popularidad <- df_charts %>% 
   group_by(Artist, Track_Name, URL) %>% 
-  summarise(semanas_sum = n(),
+ dplyr:: summarise(semanas_sum = n(),
             streams_sum = (sum(Streams, na.rm = T)/10^6 ),
             position_avg = mean(Position, na.rm = T)) %>% 
   ungroup() %>% 
@@ -1041,7 +1041,7 @@ panel <- df_charts %>%
   # select(Artist, week_start, Position , Track_Name,  everything(.)) %>% 
   arrange(Artist, Track_Name, week_start, Position) %>% 
   group_by(Artist, Track_Name) %>% 
-  mutate(contador = 1:n()) %>% 
+  dplyr::mutate(contador = 1:n()) %>% 
   dplyr::select(Artist, week_start,contador, Position , Track_Name,  everything(.))
 panel
 
@@ -1145,7 +1145,7 @@ panel %>%
 unique((join_audio_charts %>% 
   group_by(artist_key) %>% 
   # group_by(Artist) %>% 
-  summarise(n = n()) %>% 
+ dplyr:: summarise(n = n()) %>% 
   arrange(n) %>% 
   filter(n ==1))$artist_key)
 
