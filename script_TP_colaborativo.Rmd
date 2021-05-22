@@ -44,9 +44,9 @@ df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 ## Bases Nacho
 ```{r}
 #dir Nacho
-# df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
-# df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
-# df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
+df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
+df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
+df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
 ```
 
 ## Nueva Corrección duplicados
@@ -224,15 +224,18 @@ tabla_isinchart <- table(unlist(lapply(join_barplot[join_barplot$isinchart==1,"m
 
 tabla_notinchart <- table(unlist(lapply(join_barplot[join_barplot$isinchart==0,"markets_concat"], function(x) strsplit(as.character(x), ','))))
 
+all_countries <- names(tabla_isinchart)
+
+xlabs <- paste(paste(head(all_countries,3), collapse = ","),"...",paste(tail(all_countries,3),collapse = ","), collapse = ",")
+
 options(scipen=999)
 par(mfrow = c(1,2), las=1)
-barplot(sort(tabla_isinchart, decreasing = TRUE), names.arg="", xlab='En Charts',col=rgb(0.2,0.4,0.6,0.6), )
-barplot(sort(tabla_notinchart, decreasing = TRUE), names.arg = "", xlab='Fuera de Charts',col=rgb(0.2,0.4,0.6,0.6))
+barplot(sort(tabla_isinchart, decreasing = TRUE), names.arg="", main ='En Charts',col=rgb(0.2,0.4,0.6,0.6))
+mtext(side = 1, text = xlabs, line = 1)
+barplot(sort(tabla_notinchart, decreasing = TRUE), names.arg = "", main='Fuera de Charts',col=rgb(0.2,0.4,0.6,0.6))
+mtext(side = 1, text = xlabs, line = 1)
 ```
 
-```{r}
-in_chart <- as.data.frame(tabla_isinchart)
-```
 
 
 
@@ -329,12 +332,83 @@ for (feature in all_features){
 
 ```
 
-`instrumentalness` tiene mucho sesgo la variable. Quizás sirva discretizar la variable.  
+`instrumentalness` tiene mucho sesgo la variable. Se va a recurrir a una logaritmización de la variable, previa transformación del dominio, haciendo que los valores que son 0, sean en realidad 0.0000001  
 
 ```{r}
-hist(1/sqrt(df_audio_features$instrumentalness), main="Instrumentalness", xlab = '')
+logaritmo_ajustado = function(x,delta){
+  if (x==0.0){
+    return(log(x+delta, base = 10))
+  }else{
+    return(log(x, base = 10))
+  }
+}
+
+logaritmo_sumauno = function(x){
+  return(log(x+1, base=10))
+}
+
+delta <- 10^(-6)
+
+df_audio_features$instrumentalness_logadjust <- unlist(lapply(df_audio_features$instrumentalness, function(x) logaritmo_ajustado(x,delta)))
+
+par(mfrow =c(1,2))
+hist(df_audio_features$instrumentalness, main="insrumentalness", xlab="")
+hist(unlist(lapply(df_audio_features$instrumentalness, function(x) logaritmo_ajustado(x,delta))), main='instrumentalness_logadjust', ylim = c(0,130500), xlab = "")
+# hist(log(1/sqrt(df_audio_features$instrumentalness+0.00001)),main='log(sqrt(x+))', ylim=c(0,130500), xlab = "")
+
 ```
 
+¿Es útil esta transformación? 
+
+```{r}
+
+delta <- 10^(-6)
+
+df_audio_features$instrumentalness_logadjust <- unlist(lapply(df_audio_features$instrumentalness, function(x) logaritmo_ajustado(x,delta)))
+
+df_chart_tojoin <- df_charts[,c("Track_Name", "Artist", "URL")]
+df_chart_tojoin$isinchart <- 1
+df_audio_features_tojoin <- df_audio_features[, c("track_name","artist_key","external_urls_spotify","instrumentalness", "instrumentalness_logadjust")]
+
+join_histogram <- df_audio_features_tojoin %>% 
+  select("track_name","artist_key","external_urls_spotify","instrumentalness", "instrumentalness_logadjust") %>% 
+  left_join( df_chart_tojoin %>%
+               select("Track_Name", "Artist", "URL","isinchart"),
+               by = c(
+                 "track_name" = "Track_Name", 
+                      "artist_key" ="Artist", 
+                      "external_urls_spotify" = "URL"))
+
+
+join_histogram$isinchart[is.na(join_histogram$isinchart)] <- 0
+
+join_histogram$isinchart <- factor(join_histogram$isinchart)
+
+
+h11 <- hist(join_histogram[join_histogram$isinchart==1,'instrumentalness'])
+h11$density <-  h11$counts/sum(h11$counts)*100
+
+h12 <- hist(join_histogram[join_histogram$isinchart==0,'instrumentalness'])
+h12$density <-  h12$counts/sum(h12$counts)*100
+
+h21 <- hist(join_histogram[join_histogram$isinchart==1,'instrumentalness_logadjust'])
+h21$density <-  h21$counts/sum(h21$counts)*100
+
+h22 <- hist(join_histogram[join_histogram$isinchart==0,'instrumentalness_logadjust'])
+h22$density <-  h22$counts/sum(h22$counts)*100
+
+png("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/graficos/instrumentalness.png",
+    width = 800, height = 800)
+par(mfrow = c(3,2),cex=1.5)
+plot(h11, main='instrumentalness \nchart', xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
+plot(h12, main='instrumentalness \nfuera chart', xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
+plot(h21, main ="instrumentalness_log \nchart", xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
+plot(h22, main ="instrumentalness_log \nfuera chart", xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
+boxplot(join_histogram[join_histogram$isinchart==1,'instrumentalness_logadjust'], main="instrumentalness_log chart", horizontal = T)
+boxplot(join_histogram[join_histogram$isinchart==0,'instrumentalness_logadjust'], main="instrumentalness_log fuera chart", horizontal = T)
+dev.off()
+
+```
 
 
 
