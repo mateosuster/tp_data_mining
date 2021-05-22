@@ -348,9 +348,11 @@ delta <- 10^(-6)
 
 df_audio_features$instrumentalness_logadjust <- unlist(lapply(df_audio_features$instrumentalness, function(x) logaritmo_ajustado(x,delta)))
 
-par(mfrow =c(1,2))
+par(mfrow =c(2,2))
 hist(df_audio_features$instrumentalness, main="insrumentalness", xlab="")
 hist(unlist(lapply(df_audio_features$instrumentalness, function(x) logaritmo_ajustado(x,delta))), main='instrumentalness_logadjust', ylim = c(0,130500), xlab = "")
+boxplot(df_audio_features$instrumentalness, main="", horizontal = T)
+boxplot(unlist(lapply(df_audio_features$instrumentalness, function(x) logaritmo_ajustado(x,delta))), main="", horizontal=T)
 # hist(log(1/sqrt(df_audio_features$instrumentalness+0.00001)),main='log(sqrt(x+))', ylim=c(0,130500), xlab = "")
 
 ```
@@ -394,16 +396,16 @@ h21$density <-  h21$counts/sum(h21$counts)*100
 h22 <- hist(join_histogram[join_histogram$isinchart==0,'instrumentalness_logadjust'])
 h22$density <-  h22$counts/sum(h22$counts)*100
 
-png("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/graficos/instrumentalness.png",
-    width = 800, height = 800)
-par(mfrow = c(3,2),cex=1.5)
+#png("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/graficos/instrumentalness.png",
+#    width = 800, height = 800)
+par(mfrow = c(3,2))
 plot(h11, main='instrumentalness \nchart', xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
 plot(h12, main='instrumentalness \nfuera chart', xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
 plot(h21, main ="instrumentalness_log \nchart", xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
 plot(h22, main ="instrumentalness_log \nfuera chart", xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
 boxplot(join_histogram[join_histogram$isinchart==1,'instrumentalness_logadjust'], main="instrumentalness_log chart", horizontal = T)
 boxplot(join_histogram[join_histogram$isinchart==0,'instrumentalness_logadjust'], main="instrumentalness_log fuera chart", horizontal = T)
-dev.off()
+#dev.off()
 
 ```
 
