@@ -27,9 +27,11 @@ library(randomForest)
 # #borrado de duplicados que quedaron
 # # 
 # # # # 
-#  df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
+  df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
 # # # # 
-#  df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
+  df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
+
+
 ```
 
 ## Bases Mateo
@@ -120,7 +122,7 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "albu
 # deberian quedar 22993 filas completas
 join_audio_charts <- df_audio_features %>% 
   select("artist_name","artist_all","artist_key",
-         "track_name", "external_urls_spotify",
+         "track_name", "external_urls_spotify", "album_name", "album_release_year",
          all_of(features_continuas), all_of(features_categoricas)) %>% 
   right_join( df_charts %>%
                select( "Track_Name", "Artist", 
@@ -130,6 +132,7 @@ join_audio_charts <- df_audio_features %>%
                       "artist_key" ="Artist", 
                       "external_urls_spotify" = "URL"))
 
+x <- as.data.frame(table(join_audio_charts$cant_markets))
 
 x <- nrow(df_charts)- nrow(join_audio_charts)
 
@@ -239,10 +242,10 @@ in_chart <- as.data.frame(tabla_isinchart)
 
 #correlaciones en audio features
 x <- cor(df_audio_features[,c(features_continuas_media, features_continuas_mediana)],  use =  "complete.obs")
-corrplot(x, type = "upper", title = "Correlacion de atributos de audio", mar=c(0,0,1,0), method="number" ,number.cex=0.7)
+corrplot(x, type = "upper", title = "Correlacion de atributos de audio_features", mar=c(0,0,1,0), method="number" ,number.cex=0.7)
 
 #correlaciones en charts
-x <- cor(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], use =  "complete.obs")
+x <- cor(scale(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)]), use =  "complete.obs")
 corrplot(x, type = "upper", title = "Correlacion de atributos de los Charts", mar=c(0,0,1,0), method="number", number.cex=0.7 )
 
 #chi2 test #con n grande no se puede usar este test
@@ -548,7 +551,7 @@ df_audio_charts_cuanti <- df_audio_charts_cuanti %>% group_by(track_name) %>%
                                                  mutate(Streams= max(Streams)) %>%
                                                  distinct(track_name, .keep_all = TRUE)
 
-corr_charts <- cor(df_audio_charts_cuanti[,3:ncol(df_audio_charts_cuanti)])
+corr_charts <- cor(scale(df_audio_charts_cuanti[,3:ncol(df_audio_charts_cuanti)]))
 
 df_audio_charts_s_at_redund <- caret::findCorrelation(corr_charts, cutoff=0.60, names=TRUE, verbose= TRUE)
 
@@ -716,7 +719,7 @@ sum(!complete.cases(df_audio_features_complete))
 #anti_join
 anti_join_audio_charts <- df_audio_features %>% 
   select("artist_name","artist_all", "artist_key",
-         "track_name", "external_urls_spotify", 
+         "track_name", "external_urls_spotify", "album_name", "album_release_year",
          features_continuas, features_categoricas) %>% 
   anti_join( df_charts %>%
                select( "Track_Name", "Artist", "URL"),
@@ -847,48 +850,33 @@ join_audio_charts %>%
 ## Variaciones de los features agrupados por artistas, album name, año lanzamiento 
 ```{r}
 #Agregar por los artistas y clacular la varianza de los features entre sus temas
-for (i in features_continuas){
-
-  z <- aggregate(df_audio_features[, i], by= list(df_audio_features$artist_name), FUN= var)
-  k<- mean(z[,2], na.rm = TRUE) #algo pasa que tira algunos NA. revisar! (y no hay NA en las filas)
-  J <- median(z[,2], na.rm = TRUE) 
-
-  hist(z[,2], main = paste("Histograma de varianza de", i, "(agrupados por artista)"))
-  abline(v = k , col="red")
-  abline(v = J , col="blue")
-
-}
-
-
-#Agregar a los album y clacular la varianza de los features entre sus temas
 
 for (i in features_continuas){
 
-  z <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_name), FUN= var)
-  k<- mean(z[,2], na.rm = TRUE)
-  J <- median(z[,2], na.rm = TRUE) 
+ art_af <- aggregate(df_audio_features[, i], by= list(df_audio_features$artist_name), FUN= var)
+ alb_af <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_name), FUN= var)
+ year_af <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_release_year), FUN= var)
 
-  hist(z[,2], main = paste("Histograma de varianza de", i, "(agrupados por album)"))
-  abline(v = k , col="red")
-  abline(v = J , col="blue")
-
+ boxplot(art_af[,2], alb_af[,2], year_af[,2], names= c("artista", "album","year"), horizontal = TRUE)
 }
 
 
-for (i in features_continuas){
+par(mfrow=c(2,1))
+for (i in (c("valence", "acousticness"))){
 
-  z <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_release_year), FUN= var)
-  k<- mean(z[,2], na.rm = TRUE)
-  J <- median(z[,2], na.rm = TRUE) 
+ art_af <- aggregate(anti_join_audio_charts[, i], by= list(anti_join_audio_charts$artist_name), FUN= var)
+ alb_af <- aggregate(anti_join_audio_charts[, i], by= list(anti_join_audio_charts$album_name), FUN= var)
+ year_af <- aggregate(anti_join_audio_charts[, i], by= list(anti_join_audio_charts$album_release_year), FUN= var)
 
-  hist(z[,2], main = paste("Histograma de varianza de", i, "(agrupados por año de lanzamiento)"))
-  abline(v = k , col="red")
-  abline(v = J , col="blue")
-
+ art_CH <- aggregate(join_audio_charts[, i], by= list(join_audio_charts$artist_all), FUN= var)
+ alb_CH <- aggregate(join_audio_charts[, i], by= list(join_audio_charts$album_name), FUN= var)
+ year_CH <- aggregate(join_audio_charts[, i], by= list(join_audio_charts$album_release_year), FUN= var)
+ 
+ 
+ boxplot(art_af[,2], art_CH[,2], alb_af[,2], alb_CH[,2], year_af[,2], year_CH[,2], names= c("artista_AF", "artista_CH", "album_AF", "album_CH", "year_AF", "year_CH"), main=i, horizontal = TRUE, las=1)
 }
 
 
-boxplot(scale(df_audio_features[,features_continuas]), ylim=c(-5,5), las=3)
 
 
 ```
