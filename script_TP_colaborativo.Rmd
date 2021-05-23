@@ -26,10 +26,10 @@ library(randomForest)
 # # 
 # #borrado de duplicados que quedaron
 # # 
-# # # # 
-  df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
-# # # # 
-  df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
+# # # # # 
+#   df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
+# # # # # 
+#   df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
 
 
 ```
@@ -43,10 +43,10 @@ df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 
 ## Bases Nacho
 ```{r}
-#dir Nacho
-df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
-df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
-df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
+# #dir Nacho
+# df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
+# df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
+# df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
 ```
 
 ## Nueva Corrección duplicados
@@ -58,7 +58,7 @@ df_audio_features <- df_audio_features %>%
   mutate(artist_all = paste(artist_name, collapse = ",|,")) %>%
   ungroup() %>% 
   mutate(artist_key = sub(",|,.*", "", artist_all)) %>% 
-  select(artist_name, artist_all, artist_key, everything(.)) %>% 
+ dplyr::select(artist_name, artist_all, artist_key, everything(.)) %>% 
   distinct(artist_key, external_urls_spotify, .keep_all = T) %>% 
   as.data.frame()
 ```
@@ -373,7 +373,7 @@ df_chart_tojoin$isinchart <- 1
 df_audio_features_tojoin <- df_audio_features[, c("track_name","artist_key","external_urls_spotify","instrumentalness", "instrumentalness_logadjust")]
 
 join_histogram <- df_audio_features_tojoin %>% 
-  select("track_name","artist_key","external_urls_spotify","instrumentalness", "instrumentalness_logadjust") %>% 
+  dplyr::select("track_name","artist_key","external_urls_spotify","instrumentalness", "instrumentalness_logadjust") %>% 
   left_join( df_chart_tojoin %>%
                select("Track_Name", "Artist", "URL","isinchart"),
                by = c(
@@ -810,6 +810,13 @@ anti_join_audio_charts_complete_scale <- anti_join_audio_charts_complete %>%
   select(features_continuas)  %>% 
   mutate_all(scale_vble)
 nrow(anti_join_audio_charts_complete_scale)
+
+
+length(unique(df_audio_features$external_urls_spotify))
+length(unique(anti_join_audio_charts$external_urls_spotify))
+length(unique(df_charts$URL))
+length(unique(join_audio_charts$external_urls_spotify))
+
 ```
 ### Histogramas comparativos
 (comentar o descomentar segun se trate de la comparacion de los features de los temas del chart vs todos o solo vs no charts)
@@ -850,6 +857,84 @@ for (i in features_continuas) {
 }
 
 ```
+
+
+```{r}
+x <- join_audio_charts %>%
+  distinct(external_urls_spotify, .keep_all = T) %>% 
+  dplyr::select(features_categoricas) %>% 
+  mutate(is_chart = "chart") %>%
+  rbind(anti_join_audio_charts %>%
+            distinct(external_urls_spotify, .keep_all = T) %>% 
+            dplyr::select(features_categoricas) %>%
+              mutate(is_chart= "no_chart")) #%>% 
+  # gather(key = variable, value = valor, 1:5) #%>% 
+  #   ggplot( aes(x=valor, y = valor, fill = variable))+
+  # geom_bar(stat="identity", width = 1)+
+  #     coord_polar("y", start=0)+
+  #     facet_grid(variable~is_chart)
+  # 
+  #   geom_bar(stat="identity", width=1) +
+  # labs(title = paste("Barplot de variables categóricas"),
+  #      subtitle = "Comparacion temas de chart vs no-chart")+
+
+
+
+```
+#### Proporcion de lenguaje explicito
+```{r}
+cat_join <- join_audio_charts %>%
+  distinct(external_urls_spotify, .keep_all = T) %>% 
+  dplyr::select(features_categoricas) %>% 
+  mutate(is_chart = "chart") 
+
+cat_anti <- anti_join_audio_charts %>%
+            distinct(external_urls_spotify, .keep_all = T) %>% 
+            dplyr::select(features_categoricas) %>%
+              mutate(is_chart= "no_chart")
+
+
+
+x <- data.frame(table(cat_join[,"explicit"] )) %>% 
+  ggplot( aes(x="", y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0)+
+  theme_void()+
+  labs(title = "Proporción de explcit", subtitle = "En charts")+
+  scale_fill_discrete(name = "¿Lenguaje explícito?", labels = c("Falso", "Verdadero"))+
+  theme(legend.position = "bottom")
+  # theme(legend.position = "none")
+  # scale_fill_discrete(name = "¿Lenguaje explícito?", labels = c("Falso", "Verdadero"))
+
+y <- data.frame(table(cat_anti[,"explicit"] )) %>% 
+  ggplot( aes(x="", y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0)+
+  theme_void()+
+  labs(subtitle = "En no-charts")+
+  theme(legend.position = "none")
+gridExtra::grid.arrange(x, y, ncol=2)
+```
+
+
+```{r}
+join_audio_charts %>%
+  distinct(external_urls_spotify, .keep_all = T) %>% 
+  dplyr::select(cant_markets, danceability, liveness, loudness) %>% 
+  mutate(is_chart = "chart") %>%
+  rbind(anti_join_audio_charts %>%  
+          distinct(external_urls_spotify, .keep_all = T) %>% 
+          dplyr::select(cant_markets, danceability, liveness, loudness) %>%
+          mutate(is_chart= "no_chart")) %>%
+  gather(key = variable, value = valor, 1:4) %>%
+  ggplot( aes(valor, fill = is_chart))+
+  labs(title = paste("Boxplot de variables seleccionadas"),
+                     subtitle = "Comparacion temas de chart vs no-chart")+
+  geom_boxplot(alpha = 0.2)+
+  scale_fill_discrete(name = "¿Está en el chart?", labels = c("Chart", "No-chart"))+
+  facet_wrap(~variable, scales = "free_x")
+```
+
 
 Intento de hacer los histogramas de densidad con facete wrap PERO NO FUNCÓ !
 ```{r}
