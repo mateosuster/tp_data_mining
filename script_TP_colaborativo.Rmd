@@ -235,6 +235,7 @@ barplot(sort(tabla_isinchart, decreasing = TRUE), names.arg="", main ='En Charts
 mtext(side = 1, text = xlabs, line = 1)
 barplot(sort(tabla_notinchart, decreasing = TRUE), names.arg = "", main='Fuera de Charts',col=rgb(0.2,0.4,0.6,0.6))
 mtext(side = 1, text = xlabs, line = 1)
+
 ```
 
 
@@ -322,12 +323,12 @@ Con excepción de valence el resto de las features poseían cierto sesgo. Se dec
 
 
 ```{r}
-
 # "danceability,tempo,valence,acousticness,duration_ms,energy,instrumentalness,liveness,speechiness,cant_markets"
 
+#sesgos d las variables                                                   
+sort(apply(df_audio_features[,features_continuas], MARGIN = 2, function(x){ (3* (mean(x,na.rm = T)-median(x, na.rm = T)))/sd(x, na.rm = T)} ))
 
-
-variables_sesgo <- unlist(strsplit("acousticness,duration_ms,instrumentalness,liveness,speechiness,cant_markets", ","))
+variables_sesgo <- unlist(strsplit("acousticness, duration_ms, instrumentalness, liveness,speechiness, cant_markets", ","))
 
 df_sesgadas <- df_audio_features[,variables_sesgo]
 
@@ -347,8 +348,6 @@ names(df_sesgadas_log_adjust) <- paste(names(df_sesgadas), "_log", sep="")
 df_datos <- cbind(df_sesgadas, df_sesgadas_log_adjust)
 
 df_datos <-df_datos[,order(colnames((df_datos)))]
-
-
 
 
 ```
