@@ -342,8 +342,10 @@ logaritmo_ajustado = function(x,delta){
 
 delta <- 10^(-6)
 
-df_sesgadas_log_adjust <- data.frame(apply(df_audio_features[,variables_sesgo], MARGIN = c(1,2), function(x) logaritmo_ajustado(x,delta)))
-names(df_sesgadas_log_adjust) <- paste(names(df_sesgadas), "_log", sep="")
+df_sesgadas_log_adjust <- data.frame(apply(df_audio_features[,variables_sesgo], MARGIN = c(1,2), 
+                                           function(x) logaritmo_ajustado(x,delta)))
+# names(df_sesgadas_log_adjust) <- paste(names(df_sesgadas), "_log", sep="")
+names(df_sesgadas_log_adjust) <- names(df_sesgadas)
 
 df_datos <- cbind(df_sesgadas, df_sesgadas_log_adjust)
 
@@ -394,15 +396,6 @@ for (feature in features_continuas_media){
   boxplot(df_audio_features[,feature], horizontal=T)
 }
 mtext("Distribuciones danceability, tempo, valence", side = 3, line = -1, outer = TRUE)
-```
-
-
-```{r}
-
-
-
-
-
 ```
 
 
@@ -818,9 +811,22 @@ barplot(table(factor(clusters3$cluster)), labels = labs)
 
 #########################################
 
+x <- df_audio_features %>% 
+  select("artist_name","artist_all","artist_key",
+         "track_name", "external_urls_spotify", "album_name", "album_release_year",
+         all_of(features_continuas), all_of(features_categoricas)) %>%
+  select(!variables_sesgo) 
+
+join_audio_charts <- cbind(x, df_sesgadas_log_adjust) %>% 
+  right_join( df_charts %>%
+               select( "Track_Name", "Artist", 
+                       "URL","Position", "Streams", "week_start", "week_end"),
+               by = c("track_name" = "Track_Name", 
+                      "artist_key" ="Artist", 
+                      "external_urls_spotify" = "URL"))
 #audio charts
-df_audio_charts_cuanti <- join_audio_charts[,c("external_urls_spotify", "track_name",
-                                               audio_charts_continuas_media, audio_charts_continuas_mediana)]
+
+df_audio_charts_cuanti <- join_audio_charts[,c("external_urls_spotify", "track_name", audio_charts_continuas_media, audio_charts_continuas_mediana)]
 
 df_audio_charts_cuanti <- df_audio_charts_cuanti[complete.cases(df_audio_charts_cuanti) == TRUE,]
 
@@ -833,7 +839,10 @@ corr_charts <- cor(scale(df_audio_charts_cuanti[,3:ncol(df_audio_charts_cuanti)]
 df_audio_charts_s_at_redund <- caret::findCorrelation(corr_charts, cutoff=0.60, names=TRUE, verbose= TRUE)
 
 print(df_audio_charts_s_at_redund) # Energy  tienen alta correlación con otras variables.
-                                  
+```
+
+
+```{r}
 df_audio_charts_s_at_redund <- df_audio_charts_cuanti %>% select(-c("energy")) # La borramos!
 
 # conclusión: chau energy, sucede porque es combinación de otras.
@@ -860,7 +869,7 @@ varianzas<- sort(round(apply(lvf, 2, var),4))
 # Borro atributos con poca variablilidad:
 
 df_audio_charts_s_at_redund <- df_audio_charts_s_at_redund %>% 
-  select(-c("instrumentalness", "duration_ms", "Streams", "loudness", "speechiness", "liveness"))
+  select(-c("duration_ms", "Streams", "loudness", "liveness", "speechiness", "cant_markets"))
 
 # cor(df_audio_charts_s_at_redund[,2:6]) # hay baja correlacion entre ellas. buena limpieza!
 cor(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)], use = "complete.obs") 
@@ -902,8 +911,14 @@ plot(CP1, CP2)
 
 # BIPLOT
 ggbiplot::ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=0.05)
+                   # main = "CPA de features del chart")
+
 
 ```
+```{r}
+df_audio_charts_s_at_redund.PCA$rotation
+```
+
 
 # ANALISIS DE OUTLIERS
 
