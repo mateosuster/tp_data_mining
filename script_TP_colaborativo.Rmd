@@ -1043,7 +1043,7 @@ for (i in features_continuas){
  alb_af <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_name), FUN= var)
  year_af <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_release_year), FUN= var)
 
- boxplot(art_af[,2], alb_af[,2], year_af[,2], names= c("artista", "album","year"), main =i, horizontal = TRUE, las=1)
+ boxplot(art_af[,2], alb_af[,2], year_af[,2], names= c("artista", "album","year"), main =paste("Varianzas de",i), horizontal = TRUE, las=1)
 }
 
 par( mar=c(5, 5, 5, 2))
@@ -1058,7 +1058,7 @@ for (i in (c("tempo", "acousticness", "danceability"))){
  year_CH <- aggregate(join_audio_charts[, i], by= list(join_audio_charts$album_release_year), FUN= var)
  
  
- boxplot(art_af[,2], art_CH[,2], alb_af[,2], alb_CH[,2], year_af[,2], year_CH[,2], names= c("artista_AF", "artista_CH", "album_AF", "album_CH", "year_AF", "year_CH"), main=i, horizontal = TRUE, las=1)
+ boxplot(art_af[,2], art_CH[,2], alb_af[,2], alb_CH[,2], year_af[,2], year_CH[,2], names= c("artista_nonCH", "artista_CH", "album_nonCH", "album_CH", "year_nonCH", "year_CH"), main=paste("Varianzas de",i), horizontal = TRUE, las=1)
 }
 
 
