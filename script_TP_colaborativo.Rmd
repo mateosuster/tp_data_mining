@@ -915,6 +915,31 @@ y <- data.frame(table(cat_anti[,"explicit"] )) %>%
   theme(legend.position = "none")
 gridExtra::grid.arrange(x, y, ncol=2)
 ```
+##### pie plot de todas 
+```{r}
+
+for(i in features_categoricas){
+x <- data.frame(table(cat_join[,i] )) %>% 
+  ggplot( aes(x="", y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0)+
+  theme_void()+
+  labs(title = paste("Proporción de", i) , subtitle = "En charts")+
+  theme(legend.position = "bottom")
+  # theme(legend.position = "none")
+  # scale_fill_discrete(name = "¿Lenguaje explícito?", labels = c("Falso", "Verdadero"))
+
+y <- data.frame(table(cat_anti[,i] )) %>% 
+  ggplot( aes(x="", y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0)+
+  theme_void()+
+  labs(subtitle = "En no-charts")+
+  theme(legend.position = "none")
+gridExtra::grid.arrange(x, y, ncol=2)}
+
+```
+
 
 
 ```{r}
