@@ -43,10 +43,10 @@ df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 
 ## Bases Nacho
 ```{r}
-# #dir Nacho
-# df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
-# df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
-# df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
+#dir Nacho
+df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
+df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
+df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
 ```
 
 
@@ -63,7 +63,6 @@ df_audio_features <- df_audio_features %>%
   distinct(artist_key, external_urls_spotify, .keep_all = T) %>% 
   as.data.frame()
 ```
-
 
 # ANALISIS DE NULOS
 
@@ -140,6 +139,7 @@ x <- nrow(df_charts)- nrow(join_audio_charts)
 #Análisis de NA
 md.pattern(join_audio_charts, rotate.names = TRUE) #HAY CHARTS QUE NO TIENEN FEATURES. HAY QUE TENERLO EN CUENTA PARA EL ANÁLISIS
 ```
+
 
 # HISTOGRAMAS Y BARPLOTS DE VARIABLES
 ```{r}
@@ -298,16 +298,70 @@ as.data.frame(cbind(cv_features, cv_charts))
 
 ```
 
+
+# SESGO DE VARIABLES 
+
 ## Boxplots Variables Numéricas sin filtrar outliers
 ```{r}
 #divido los features por su distribución
 features_continuas_media <- c('danceability', 'tempo', 'valence')
 
-features_continuas_mediana <- c('acousticness', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness', 'cant_markets')
+features_continuas_mediana <- c('acousticness', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness_reg_imp', 'speechiness', 'cant_markets')
+
+all_features <- c(features_continuas_media, features_continuas_mediana)
+
+par(mfrow=c(4,3))
+for (feature in all_features){
+  boxplot(df_audio_features[,feature], las=2, horizontal=T, main=feature)
+}
 
 
-boxplot(scale(df_audio_features[,c(features_continuas_media, features_continuas_mediana)]), las=2)
 ```
+
+Con excepción de valence el resto de las features poseían cierto sesgo. Se decidió transformar las variables que mayor sesgo poseían: duration_ms, instrumentalness, liveness, speechiness como método de corregir la distribución y achicar la cantidad de outliers. La variable loudness_reg_imp no fue modificada debido a que al ser negativa 
+
+
+```{r}
+
+# "danceability,tempo,valence,acousticness,duration_ms,energy,instrumentalness,liveness,speechiness,cant_markets"
+
+variables_sesgo <- unlist(strsplit("danceability,tempo,valence,acousticness,duration_ms,energy,instrumentalness,liveness,speechiness,cant_markets", ","))
+
+df_sesgadas <- df_audio_features[,variables_sesgo]
+
+logaritmo_ajustado = function(x,delta){
+  if (x==0.0){
+    return(log(0.00+delta, base = 10))
+  }else{
+    return(log(x, base = 10))
+  }
+}
+
+delta <- 10^(-6)
+
+df_sesgadas_log_adjust <- as.data.frame(unlist(lapply(df_audio_features[,variables_sesgo], function(x) logaritmo_ajustado(x,delta))))
+names(df_sesgadas_log_adjust) = paste(names(df_sesgadas), "log", sep="")
+
+df_datos <- cbing(df_sesgadas, df_sesgadas_log_adjust)
+
+
+
+```
+
+
+
+
+```{r}
+summary(df_audio_features[,all_features])
+```
+```{r}
+
+
+hist(log(df_audio_features$duration_ms))
+
+```
+
+
 
 ## Boxplots Variables Numéricas filtrando outliers por método del rango intercuartil
 
@@ -320,18 +374,164 @@ sin_outliers_box <- function(col){
   cuartil1 <- quantile(col, na.rm = T, probs = c(0.25))
   cuartil3 <- quantile(col, na.rm = T, probs = c(0.75))
   conditions <- (col>cuartil1-1.5*iqr_col) & (col<cuartil3+1.5*iqr_col) 
-  bp <- boxplot(col[conditions], main=name, horizontal = T)
+  bp <- boxplot(scale(col[conditions]), main=paste(name,"\nsin_out",sep='_'), horizontal = T)
   return(bp)
 }
 
-all_features <- c(features_continuas_media, features_continuas_mediana)
 
-par(mfrow=c(4,3))
-for (feature in all_features){
+
+#all_features <- c(features_continuas_media, features_continuas_mediana)
+
+par(mfrow=c(2,3), mar=c(5,2,5,2))
+for (feature in features_continuas_media){
+  hist(df_audio_features[,feature], main=feature, xlab="")
+}
+for (feature in features_continuas_media){
+  boxplot(df_audio_features[,feature], horizontal=T)
+}
+mtext("Distribuciones danceability, tempo, valence", side = 3, line = -1, outer = TRUE)
+```
+
+
+```{r}
+
+
+
+
+
+```
+
+
+
+```{r}
+
+par(mfrow=c(4,4))
+for (feature in features_continuas_mediana[1:4]){
+  boxplot(scale(df_audio_features[,feature]), las=2, horizontal=T, main=feature)
+}
+for (feature in features_continuas_mediana[1:4]){
+  sin_outliers_box(feature)
+}
+for (feature in features_continuas_mediana[5:8]){
+  boxplot(scale(df_audio_features[,feature]), las=2, horizontal=T, main=feature)
+}
+for (feature in features_continuas_mediana[5:8]){
   sin_outliers_box(feature)
 }
 
 ```
+
+```{r}
+
+transformacion <- c('instrumentalness','loudness','liveness','speechiness', 'duration_ms')
+
+logaritmo_ajustado = function(x,delta){
+  if (x<=0.0){
+    return(log(0.00+delta, base = 10))
+  }else{
+    return(log(x, base = 10))
+  }
+}
+
+delta <- 10^(-6)
+
+par(mfrow=c(2,4))
+for (feature in transformacion){
+  hist(df_audio_features[,feature], main=feature)
+}
+for (feature in transformacion){
+  hist(unlist(lapply(df_audio_features[,feature], function(x) logaritmo_ajustado(x,delta))), main=paste(feature,"log", sep="_"))
+}
+```
+
+```{r}
+
+inv_sqrt_ajustada = function(x, delta){
+  if (x==0.0){
+    return(1/sqrt(x+delta))
+  }else{
+    return(1/sqrt(x))
+  }
+}
+
+
+delta <- 10^(-6)
+
+par(mfrow=c(2,4))
+for (feature in transformacion){
+  hist(df_audio_features[,feature], main=feature)
+}
+for (feature in transformacion){
+  hist(unlist(lapply(df_audio_features[,feature], function(x) inv_sqrt_ajustada(x,delta))), main=paste(feature,"inv_sqt", sep="_"))
+}
+
+
+
+```
+
+
+```{r}
+
+
+par(mfrow=c(2,4))
+for (feature in transformacion){
+  hist(df_audio_features[,feature], main=feature)
+}
+for (feature in transformacion){
+  hist(sqrt(df_audio_features[,feature]), main=paste(feature,"sqrt", sep="_"))
+}
+
+```
+
+
+
+```{r}
+
+par(mfrow = c(2,1)) 
+hist(df_audio_features[,'loudness_reg_imp'], main='loudness', xlab="")
+#hist(sqrt(df_audio_features[,'loudness_reg_imp']), main= 'loudness_sqrt', xlab="")
+boxplot(df_audio_features[,'loudness_reg_imp'], horizontal = T)
+#boxplot(sqrt(df_audio_features[,'loudness_reg_imp']), horizontal = T)
+
+
+
+
+
+```
+
+```{r}
+fit <- lm(loudness~energy+acousticness, data=df_audio_features)
+
+modelo <- fit$coefficients
+
+df_audio_features$loudness_reg_imp <- df_audio_features$loudness
+
+X <- df_audio_features[df_audio_features$loudness>0, c('energy', "acousticness")]
+
+df_audio_features$loudness_reg_imp[df_audio_features$loudness>0] <- modelo[1]+modelo[2]*X[,1]+modelo[3]*X[,2]
+
+summary(df_audio_features[,c("loudness", "loudness_reg_imp")])
+
+summary(fit)
+```
+
+```{r}
+
+par(mfrow = c(2,1)) 
+boxplot(df_audio_features[,'loudness'], main='loudness', horizontal = T)
+boxplot(df_audio_features[,'loudness_reg_imp'], main='loudness_reg', horizontal = T)
+```
+
+```{r}
+
+
+
+
+
+```
+
+
+
 
 `instrumentalness` tiene mucho sesgo la variable. Se va a recurrir a una logaritmización de la variable, previa transformación del dominio, haciendo que los valores que son 0, sean en realidad 0.0000001  
 
@@ -342,10 +542,6 @@ logaritmo_ajustado = function(x,delta){
   }else{
     return(log(x, base = 10))
   }
-}
-
-logaritmo_sumauno = function(x){
-  return(log(x+1, base=10))
 }
 
 delta <- 10^(-6)
