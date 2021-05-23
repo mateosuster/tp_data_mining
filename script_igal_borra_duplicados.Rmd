@@ -22,6 +22,8 @@ library(mice)
 audio_features <- mongo(collection = "audio_features", db = "spotify_dm")
 df_audio_features <- audio_features$find()
 
+print("documentos de audio_feaures")
+nrow(df_audio_features)
 #faltantes = summary(aggr(df_audio_features, sortVar=TRUE, plot=T))
 #print(faltantes$combinations)
 #md.pattern(df_audio_features, rotate.names=TRUE)
@@ -29,6 +31,9 @@ df_audio_features <- audio_features$find()
 
 artist <- mongo(collection = "artist", db = "spotify_dm")
 df_artist <- artist$find()
+
+print("documentos artists")
+nrow(df_artist)
 
 charts <- mongo(collection = "charts", db = "spotify_dm")
 df_charts <- charts$find()

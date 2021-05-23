@@ -49,6 +49,7 @@ df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/T
 df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
 ```
 
+
 ## Nueva Corrección duplicados
 ```{r}
 #borro duplicados que quedaron en el audio_features
@@ -796,7 +797,7 @@ sum(!complete.cases(df_audio_features_complete))
 anti_join_audio_charts <- df_audio_features %>% 
   select("artist_name","artist_all", "artist_key",
          "track_name", "external_urls_spotify", "album_name", "album_release_year",
-         features_continuas, features_categoricas) %>% 
+         all_of(features_continuas), all_of(features_categoricas)) %>% 
   anti_join( df_charts %>%
                select( "Track_Name", "Artist", "URL"),
                by = c("external_urls_spotify" ="URL",
