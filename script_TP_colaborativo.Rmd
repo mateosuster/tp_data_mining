@@ -900,7 +900,7 @@ x <- data.frame(table(cat_join[,"explicit"] )) %>%
   geom_bar(stat="identity", width=1) +
   coord_polar("y", start=0)+
   theme_void()+
-  labs(title = "Proporción de explcit", subtitle = "En charts")+
+  labs(title = "Proporción de explicit", subtitle = "Charts")+
   scale_fill_discrete(name = "¿Lenguaje explícito?", labels = c("Falso", "Verdadero"))+
   theme(legend.position = "bottom")
   # theme(legend.position = "none")
@@ -911,7 +911,7 @@ y <- data.frame(table(cat_anti[,"explicit"] )) %>%
   geom_bar(stat="identity", width=1) +
   coord_polar("y", start=0)+
   theme_void()+
-  labs(subtitle = "En no-charts")+
+  labs(subtitle = "No-charts")+
   theme(legend.position = "none")
 gridExtra::grid.arrange(x, y, ncol=2)
 ```
