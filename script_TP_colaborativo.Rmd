@@ -325,7 +325,9 @@ Con excepción de valence el resto de las features poseían cierto sesgo. Se dec
 
 # "danceability,tempo,valence,acousticness,duration_ms,energy,instrumentalness,liveness,speechiness,cant_markets"
 
-variables_sesgo <- unlist(strsplit("danceability,tempo,valence,acousticness,duration_ms,energy,instrumentalness,liveness,speechiness,cant_markets", ","))
+
+
+variables_sesgo <- unlist(strsplit("acousticness,duration_ms,instrumentalness,liveness,speechiness,cant_markets", ","))
 
 df_sesgadas <- df_audio_features[,variables_sesgo]
 
@@ -339,10 +341,13 @@ logaritmo_ajustado = function(x,delta){
 
 delta <- 10^(-6)
 
-df_sesgadas_log_adjust <- as.data.frame(unlist(lapply(df_audio_features[,variables_sesgo], function(x) logaritmo_ajustado(x,delta))))
-names(df_sesgadas_log_adjust) = paste(names(df_sesgadas), "log", sep="")
+df_sesgadas_log_adjust <- data.frame(apply(df_audio_features[,variables_sesgo], MARGIN = c(1,2), function(x) logaritmo_ajustado(x,delta)))
+names(df_sesgadas_log_adjust) <- paste(names(df_sesgadas), "_log", sep="")
 
-df_datos <- cbing(df_sesgadas, df_sesgadas_log_adjust)
+df_datos <- cbind(df_sesgadas, df_sesgadas_log_adjust)
+
+df_datos <-df_datos[,order(colnames((df_datos)))]
+
 
 
 
