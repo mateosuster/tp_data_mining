@@ -239,28 +239,29 @@ mtext(side = 1, text = xlabs, line = 1)
 ```
 
 
-
-
 # CORRELACIONES
 ```{r}
-#análisis de correlación numericas
-
 #correlaciones en audio features
 x <- cor(df_audio_features[,c(features_continuas_media, features_continuas_mediana)],  use =  "complete.obs")
 corrplot(x, type = "upper", title = "Correlacion de atributos de audio_features", mar=c(0,0,1,0), method="number" ,number.cex=0.7)
+```
+
+
+```{r}
 
 #correlaciones en charts
 x <- cor(scale(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)]), use =  "complete.obs")
 corrplot(x, type = "upper", title = "Correlacion de atributos de los Charts", mar=c(0,0,1,0), method="number", number.cex=0.7 )
+```
+
+```{r}
 
 #chi2 test #con n grande no se puede usar este test
 tabla_key_album <- table(df_audio_features$key_name, df_audio_features$album_type)
 cat("Tabla de contigencia entre key y album type\n")
 tabla_key_album
 chisq.test(tabla_key_album)
-
 ```
-
 
 # ANALISIS DE OUTLIERS UNIVARIADO
 
@@ -275,23 +276,23 @@ coef_var <- function(col){
 }
 
 #coeficiente de variacion audio_features
-cat("coeficiente de variacion\n")
+#cat("coeficiente de variacion\n")
 cv <- apply(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], 2, coef_var)
 cv_features <- sort(cv, decreasing = T)
 
-cat("\ndesvio_standard\n")
-desvio_standard <- round(apply(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], 2, sd),2)
-desvio_standard[order(names(desvio_standard))]
+# cat("\ndesvio_standard\n")
+# desvio_standard <- round(apply(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], 2, sd),2)
+# desvio_standard[order(names(desvio_standard))]
 
 
 #coeficiente de variacion charts
-cat("coeficiente de variacion\n")
+#cat("coeficiente de variacion\n")
 cv <- apply(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], 2, coef_var)
 cv_charts <- sort(cv, decreasing = T)
 
-cat("\ndesvio_standard\n")
-desvio_standard <- round(apply(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], 2, sd, na.rm=TRUE),2)
-desvio_standard[order(names(desvio_standard))]
+# cat("\ndesvio_standard\n")
+# desvio_standard <- round(apply(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], 2, sd, na.rm=TRUE),2)
+# desvio_standard[order(names(desvio_standard))]
 
 # cuadro comparativo sobre las variaciones de las caractersiticas de las canciones
 #entre todas y charts
@@ -307,7 +308,7 @@ as.data.frame(cbind(cv_features, cv_charts))
 #divido los features por su distribución
 features_continuas_media <- c('danceability', 'tempo', 'valence')
 
-features_continuas_mediana <- c('acousticness', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness_reg_imp', 'speechiness', 'cant_markets')
+features_continuas_mediana <- c('acousticness', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness', 'cant_markets')
 
 all_features <- c(features_continuas_media, features_continuas_mediana)
 
@@ -315,8 +316,6 @@ par(mfrow=c(4,3))
 for (feature in all_features){
   boxplot(df_audio_features[,feature], las=2, horizontal=T, main=feature)
 }
-
-
 ```
 
 Con excepción de valence el resto de las features poseían cierto sesgo. Se decidió transformar las variables que mayor sesgo poseían: duration_ms, instrumentalness, liveness, speechiness como método de corregir la distribución y achicar la cantidad de outliers. La variable loudness_reg_imp no fue modificada debido a que al ser negativa 
@@ -328,7 +327,7 @@ Con excepción de valence el resto de las features poseían cierto sesgo. Se dec
 #sesgos d las variables                                                   
 sort(apply(df_audio_features[,features_continuas], MARGIN = 2, function(x){ (3* (mean(x,na.rm = T)-median(x, na.rm = T)))/sd(x, na.rm = T)} ))
 
-variables_sesgo <- unlist(strsplit("acousticness, duration_ms, instrumentalness, liveness,speechiness, cant_markets", ","))
+variables_sesgo <- unlist(strsplit("acousticness,duration_ms,instrumentalness,liveness,speechiness,cant_markets,energy", ","))
 
 df_sesgadas <- df_audio_features[,variables_sesgo]
 
@@ -349,11 +348,33 @@ names(df_sesgadas_log_adjust) <- names(df_sesgadas)
 
 df_datos <- cbind(df_sesgadas, df_sesgadas_log_adjust)
 
-df_datos <-df_datos[,order(colnames((df_datos)))] 
 
+
+a <- df_sesgadas
+b <- df_sesgadas_log_adjust
+names(b) <- paste(names(df_sesgadas), "_log", sep="")
+merged <- cbind(a,b)
+
+merged <- merged[, order(names(merged))]
+
+round(sort(apply(merged, MARGIN = 2, function(x){ (3* (mean(x,na.rm = T)-median(x, na.rm = T)))/sd(x, na.rm = T)})),2)
 
 ```
 
+
+```{r}
+
+variables_plot <- unlist(strsplit("duration_ms", ","))
+variables_plot <- append(variables_plot,paste(variables_plot,"_log", sep=""))
+variables_plot <- variables_plot[order(variables_plot)]
+plotear <- merged[,variables_plot]
+
+par(mfrow = c(1,2))
+for (col in names(plotear)){
+  hist(plotear[,col], breaks="FD", main=col, xlab="")
+}
+
+```
 
 
 
