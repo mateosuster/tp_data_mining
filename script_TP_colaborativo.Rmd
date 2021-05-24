@@ -346,7 +346,7 @@ names(df_sesgadas_log_adjust) <- paste(names(df_sesgadas), "_log", sep="")
 
 df_datos <- cbind(df_sesgadas, df_sesgadas_log_adjust)
 
-df_datos <-df_datos[,order(colnames((df_datos)))]
+df_datos <-df_datos[,order(colnames((df_datos)))] 
 
 
 
