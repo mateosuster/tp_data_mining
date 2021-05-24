@@ -962,7 +962,10 @@ freq_outlier_menos_de_10 <- freq_outlier[freq_outlier$Freq>50,]
 plot(CP1, CP2,
      col=ifelse(df_audio_charts_s_at_redund$track_name %in% top_ifores_sample$track_name, "red", "blue"),
      pch=ifelse(df_audio_charts_s_at_redund$track_name %in% freq_outlier_menos_de_10$Var1,18,1),
-     cex=ifelse(df_audio_charts_s_at_redund$track_name %in% freq_outlier_menos_de_10$Var1,2,1))
+     cex=ifelse(df_audio_charts_s_at_redund$track_name %in% freq_outlier_menos_de_10$Var1,2,1),
+     main = "Temas del chart proyectados sobre las PCA y detección de outliers")
+legend( x = "bottomright", legend=c("Canciones del chart", "Outliers del chart", "Outliers del chart con mayor frecuencia"),
+       col=c("blue", "red", "red"), pch = c(1, 1,18) , cex = 0.8)
 
 hist(freq_outlier$Freq)
 
