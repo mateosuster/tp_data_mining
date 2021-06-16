@@ -19,34 +19,11 @@ library(randomForest)
 ```
 # CARGA DE BASES 
 
-## Bases Igal
-```{r}
-#dir igal
-# df_artist <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_artist_sin_duplicados.csv")
-# # 
-# #borrado de duplicados que quedaron
-# # 
-# # # # # 
-#   df_charts <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/data_mining/data/df_charts_sin_duplicados.csv")
-# # # # # 
-#   df_audio_features <- read.csv("C:/Users/igalk/OneDrive/Documentos/laburo/Data Mining FCEyN/Data mining/TP/audio_features_plano_sin_duplicados.csv")
-
-
-```
-
 ## Bases Mateo
 ```{r}
 df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
 df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
 df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
-```
-
-## Bases Nacho
-```{r}
-#dir Nacho
-df_artist <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_artist_sin_duplicados.csv")
-df_charts <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/df_charts_sin_duplicados.csv")
-df_audio_features <- read.csv("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/data/audio_features_plano_sin_duplicados.csv")
 ```
 
 
@@ -64,33 +41,8 @@ df_audio_features <- df_audio_features %>%
   as.data.frame()
 ```
 
-# ANALISIS DE NULOS
-
-## Nulos en df_audio_features
+# CREACION `cant_markets`
 ```{r}
-md.pattern(df_audio_features, rotate.names = TRUE) #faltan dos columas irrelevantes
-
-```
-
-## Nulos en df_charts
-```{r}
-md.pattern(df_charts, rotate.names = TRUE)
-#md.pattern(df_artist, rotate.names = TRUE) #no tiene sentido con 1 sola columna
-```
-
-
-# ANALISIS DE SEMANAS Y MERCADOS
-```{r}
-#chequeo de semanas: tenemos 157 semanas en total, 200 temas por semana
-df_charts %>% mutate(week_number = week(week_start), 
-                     anio = year(week_start),
-                     week_anio = paste(anio,week_number, sep = "-")) %>% 
-  select(week_start, week_number, anio, week_anio) %>% 
-  group_by(week_anio) %>% 
-  summarise(n = n())
-  
-
-#armo columna con cantidad de paises donde está disponible cada canción
 
 contar_market <- function(x){
 q <- length(unlist(strsplit(x, split = ",")))
@@ -112,10 +64,10 @@ features_continuas <- c('acousticness', 'danceability', 'duration_ms', 'energy',
 
 #features var_ categóricas
 features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "album_type")
-#sacamos_market concat porque la pasamos a cantiddad de mercados
+
 ```
 
-# JOIN `audio_features` Y `charts`
+# RIGTH JOIN `audio_features` Y `charts`
 ```{r}
 
 #Armamos un join para tener una tabla de charts con las caracteristicas de las canciones
@@ -132,12 +84,7 @@ join_audio_charts <- df_audio_features %>%
                       "artist_key" ="Artist", 
                       "external_urls_spotify" = "URL"))
 
-x <- as.data.frame(table(join_audio_charts$cant_markets))
-
-x <- nrow(df_charts)- nrow(join_audio_charts)
-
-#Análisis de NA
-md.pattern(join_audio_charts, rotate.names = TRUE) #HAY CHARTS QUE NO TIENEN FEATURES. HAY QUE TENERLO EN CUENTA PARA EL ANÁLISIS
+#HAY CHARTS QUE NO TIENEN FEATURES. HAY QUE TENERLO EN CUENTA PARA EL ANÁLISIS
 ```
 
 
@@ -264,43 +211,6 @@ tabla_key_album
 chisq.test(tabla_key_album)
 ```
 
-# ANALISIS DE OUTLIERS UNIVARIADO
-
-
-## Revisión de Coeficiente de Variación Variables Numéricas
-```{r}
-## Metricas de variacion
-coef_var <- function(col){
-  media = abs(mean(col, na.rm = T))
-  stdv = sd(col, na.rm = T)
-  return(round(stdv/media,3))
-}
-
-#coeficiente de variacion audio_features
-#cat("coeficiente de variacion\n")
-cv <- apply(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], 2, coef_var)
-cv_features <- sort(cv, decreasing = T)
-
-# cat("\ndesvio_standard\n")
-# desvio_standard <- round(apply(df_audio_features[,c(features_continuas_media, features_continuas_mediana)], 2, sd),2)
-# desvio_standard[order(names(desvio_standard))]
-
-
-#coeficiente de variacion charts
-#cat("coeficiente de variacion\n")
-cv <- apply(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], 2, coef_var)
-cv_charts <- sort(cv, decreasing = T)
-
-# cat("\ndesvio_standard\n")
-# desvio_standard <- round(apply(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)], 2, sd, na.rm=TRUE),2)
-# desvio_standard[order(names(desvio_standard))]
-
-# cuadro comparativo sobre las variaciones de las caractersiticas de las canciones
-#entre todas y charts
-as.data.frame(cbind(cv_features, cv_charts))
-
-```
-
 
 # SESGO DE VARIABLES 
 
@@ -391,54 +301,6 @@ hist(log(df_audio_features$duration_ms))
 
 
 
-## Boxplots Variables Numéricas filtrando outliers por método del rango intercuartil
-
-```{r}
-
-sin_outliers_box <- function(col){
-  name <- col
-  col <- df_audio_features[,col]
-  iqr_col <- IQR(col)
-  cuartil1 <- quantile(col, na.rm = T, probs = c(0.25))
-  cuartil3 <- quantile(col, na.rm = T, probs = c(0.75))
-  conditions <- (col>cuartil1-1.5*iqr_col) & (col<cuartil3+1.5*iqr_col) 
-  bp <- boxplot(scale(col[conditions]), main=paste(name,"\nsin_out",sep='_'), horizontal = T)
-  return(bp)
-}
-
-
-
-#all_features <- c(features_continuas_media, features_continuas_mediana)
-
-par(mfrow=c(2,3), mar=c(5,2,5,2))
-for (feature in features_continuas_media){
-  hist(df_audio_features[,feature], main=feature, xlab="")
-}
-for (feature in features_continuas_media){
-  boxplot(df_audio_features[,feature], horizontal=T)
-}
-mtext("Distribuciones danceability, tempo, valence", side = 3, line = -1, outer = TRUE)
-```
-
-
-
-```{r}
-
-par(mfrow=c(4,4))
-for (feature in features_continuas_mediana[1:4]){
-  boxplot(scale(df_audio_features[,feature]), las=2, horizontal=T, main=feature)
-}
-for (feature in features_continuas_mediana[1:4]){
-  sin_outliers_box(feature)
-}
-for (feature in features_continuas_mediana[5:8]){
-  boxplot(scale(df_audio_features[,feature]), las=2, horizontal=T, main=feature)
-}
-for (feature in features_continuas_mediana[5:8]){
-  sin_outliers_box(feature)
-}
-
-```
 
 ```{r}
 
@@ -533,22 +395,6 @@ summary(df_audio_features[,c("loudness", "loudness_reg_imp")])
 
 summary(fit)
 ```
-
-```{r}
-
-par(mfrow = c(2,1)) 
-boxplot(df_audio_features[,'loudness'], main='loudness', horizontal = T)
-boxplot(df_audio_features[,'loudness_reg_imp'], main='loudness_reg', horizontal = T)
-```
-
-```{r}
-
-
-
-
-
-```
-
 
 
 
@@ -788,277 +634,6 @@ labs
 ```
 
 
-
-
-```{r}
-
-#################################
-
-#analisis de outliers ¿quíenes son los que me voy a sacar de encima?
-
-#cuantos artistas
-# length(unique(df_audio_features["artist_name"][df_audio_features$duration_ms < duration.bigote.inferior,]))
-# 
-# #observo nuevo boxplot con outliers filtados de duration_ms
-# boxplot(df_audio_features["duration_ms"][df_audio_features["duration_ms"] <= duration.bigote.superior ])
-# 
-# #calculo umbral para loudness
-# loudness.bigote.inferior <- boxplot(df_audio_features$loudness)$stats[1]
-# 
-# #guardo nuevo dataset filtrado (nro instancias 140k, perdemos 16k registros )
-# df_audio_features_filtrado <- df_audio_features %>% 
-#   filter(duration_ms <= duration.bigote.superior &
-#          loudness >= loudness.bigote.inferior)
-# 
-# ####################################
-# 
-# #
-# # nuevo boxplot con las variables filtradas
-
-####################################
-
-#
-
-```
-
-#preguntas!
-
-# ELIMINACION ATRIBUTOS REDUNDANTES
-
-```{r}
-###########################################
-
-# borro atributos redundantes. Paso 1
-#               correlograma
-
-#########################################
-
-x <- df_audio_features %>% 
-  select("artist_name","artist_all","artist_key",
-         "track_name", "external_urls_spotify", "album_name", "album_release_year",
-         all_of(features_continuas), all_of(features_categoricas)) %>%
-  select(!variables_sesgo) 
-
-join_audio_charts <- cbind(x, df_sesgadas_log_adjust) %>% 
-  right_join( df_charts %>%
-               select( "Track_Name", "Artist", 
-                       "URL","Position", "Streams", "week_start", "week_end"),
-               by = c("track_name" = "Track_Name", 
-                      "artist_key" ="Artist", 
-                      "external_urls_spotify" = "URL"))
-#audio charts
-
-df_audio_charts_cuanti <- join_audio_charts[,c("external_urls_spotify", "track_name", audio_charts_continuas_media, audio_charts_continuas_mediana)]
-
-df_audio_charts_cuanti <- df_audio_charts_cuanti[complete.cases(df_audio_charts_cuanti) == TRUE,]
-
-df_audio_charts_cuanti <- df_audio_charts_cuanti %>% group_by(track_name) %>%
-                                                 mutate(Streams= max(Streams)) %>%
-                                                 distinct(track_name, .keep_all = TRUE)
-
-corr_charts <- cor(scale(df_audio_charts_cuanti[,3:ncol(df_audio_charts_cuanti)]))
-
-df_audio_charts_s_at_redund <- caret::findCorrelation(corr_charts, cutoff=0.60, names=TRUE, verbose= TRUE)
-
-print(df_audio_charts_s_at_redund) # Energy  tienen alta correlación con otras variables.
-```
-```{r}
-x <- cor(scale(join_audio_charts[,c(audio_charts_continuas_media, audio_charts_continuas_mediana)]), use =  "complete.obs")
-corrplot(x, type = "upper", title = "Correlacion de atributos de los Charts", mar=c(0,0,1,0), method="number", number.cex=0.7 )
-```
-
-
-
-```{r}
-df_audio_charts_s_at_redund <- df_audio_charts_cuanti %>% select(-c("energy")) # La borramos!
-
-# conclusión: chau energy, sucede porque es combinación de otras.
-
-##########################################
-
-#paso 2: busqueda de features con poca variabilidad
-
-#######################################
-
-lvf <-  df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)]
-
-#normalizo todas las variables entre 0 y 1
-for(i in 1:ncol(lvf)) {
-  lvf[,i] <- (lvf[,i]-min(lvf[,i]))/(max(lvf[,i])-min(lvf[,i]))
-}
-
-#calculo de varianzas de las variables
-varianzas<- sort(round(apply(lvf, 2, var),4))
- 
-# comento todo esta moficacion del dataset
-# df_audio_charts_s_at_redund <- cbind(track_name = df_audio_charts_s_at_redund$track_name, lvf)
-
-# Borro atributos con poca variablilidad:
-
-df_audio_charts_s_at_redund <- df_audio_charts_s_at_redund %>% 
-  select(-c("duration_ms", "Streams", "loudness", "liveness", "speechiness", "cant_markets"))
-
-# cor(df_audio_charts_s_at_redund[,2:6]) # hay baja correlacion entre ellas. buena limpieza!
-cor(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)], use = "complete.obs") 
-```
-
-
-# CPA
-
-```{r}
-
-###################################################
-
-#                     CPA - AUDIO CHARTS
-
-################################################
-
-df_audio_charts_s_at_redund.PCA = prcomp(df_audio_charts_s_at_redund[,3:(ncol(df_audio_charts_s_at_redund))], 
-                                         scale. = TRUE)
-
-df_audio_charts_s_at_redund.PCA$rotation #autovectores de CPA
-
-summary(df_audio_charts_s_at_redund.PCA) #Primeros tres autovectores me explican el 70%
-
-
-carga1 = data.frame(carga_1 = df_audio_charts_s_at_redund.PCA$rotation[,1])
-carga2 = data.frame(carga_2 = df_audio_charts_s_at_redund.PCA$rotation[,2])
-carga3 = data.frame(carga_3 = df_audio_charts_s_at_redund.PCA$rotation[,3])
-
-print(round(cbind(carga1,carga2, carga3),2))
-
-#valores que tomarian las componentes
-
-CP1 = as.matrix(scale(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)])) %*%
-  as.matrix(carga1[,"carga_1"])
-CP2 = as.matrix(scale(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)]))%*% 
-  as.matrix(carga2[,"carga_2"])
-
-plot(CP1, CP2)
-
-# BIPLOT
-ggbiplot::ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=0.05)+
-  labs(title="Biplot de componentes principales")
-                   # main = "CPA de features del chart")
-
-summary(df_audio_charts_s_at_redund.PCA)
-df_audio_charts_s_at_redund.PCA
-```
-
-
-# ANALISIS DE OUTLIERS
-
-```{r}
-popularidad <- df_charts %>% 
-  group_by(Artist, Track_Name, URL) %>% 
- dplyr:: summarise(semanas_sum = n(),
-            streams_sum = (sum(Streams, na.rm = T)/10^6 ),
-            position_avg = mean(Position, na.rm = T)) %>% 
-  ungroup() %>% 
-  mutate(indicador = as.numeric(streams_sum*semanas_sum/position_avg) ) 
-
-popularidad %>% 
-  select(1,2,7) %>% 
-  arrange(-indicador)
-
-md.pattern(popularidad, rotate.names = TRUE)
-popularidad[is.na(popularidad$indicador),]
-```
-
-
-```{r}
-
-######################################################################
-#                                                                    #
-#      Análisis de los datos (respuesta a  las preguntas del TP)     #
-#                                                                    #
-######################################################################
-
-#outliers multivariados
-#Isolation Forest
-
-#método 2: isolation forest (categóticas y continuas)
-
-#ajusto el modelo
-df_audio_charts_s_at_redund_scale <-  data.frame(df_audio_charts_s_at_redund[,1:2],
-                                            scale(df_audio_charts_s_at_redund[,3:ncol(df_audio_charts_s_at_redund)]))
-
-iforest_sample = isotree::isolation.forest(as.matrix(df_audio_charts_s_at_redund_scale[,2:ncol(df_audio_charts_s_at_redund)]),
-                                  sample_size = 800, ntrees=100, ndim = 2, random_seed = 1)
-
-#utilzo el metodo predict para calcula el score sobre todos los puntos
-df_audio_charts_s_at_redund_scale$iforest_pred = predict(iforest_sample,
-                                                   df_audio_charts_s_at_redund_scale)
-
-#que canciones identifico?
-top_ifores_sample <- head(df_audio_charts_s_at_redund_scale[order(df_audio_charts_s_at_redund_scale$iforest_pred,
-                                                                  decreasing = T),],200)
-
-
-top_ifores_sample <- df_audio_charts_s_at_redund_scale[df_audio_charts_s_at_redund_scale$iforest_pred > 0.5,]
-
-print(top_ifores_sample)
-
-# freq_outlier <- as.data.frame(table(join_audio_charts[join_audio_charts$external_urls_spotify%in%
-#                                                         top_ifores_sample$external_urls_spotify, c("external_urls_spotify")]))
-
-outilers_pop <- popularidad[popularidad$URL%in% top_ifores_sample$external_urls_spotify, c("URL","indicador", "Track_Name" )]
-top_outilers_pop <-  slice_max(.data = outilers_pop, n = 10, order_by = indicador)
-
-
-# summary(freq_outlier)
-# 
-# freq_outlier_menos_de_10 <- freq_outlier[freq_outlier$Freq>50,]
-
-
-
-#GRAFICO!!!
-plot(CP1, CP2,
-     col=ifelse(df_audio_charts_s_at_redund$track_name %in% top_ifores_sample$track_name, "red", "blue"),
-     pch=ifelse(df_audio_charts_s_at_redund$external_urls_spotify %in% top_outilers_pop$URL,18,1),
-     cex=ifelse(df_audio_charts_s_at_redund$external_urls_spotify %in% top_outilers_pop$URL,2,1),
-     main = "Temas del chart sobre PCA y detección de outliers más populares")
-legend( x = "bottomright", legend=c("Canciones del chart", "Outliers del chart", "Outliers del chart más populares"),
-       col=c("blue", "red", "red"), pch = c(1, 1,18) , cex = 0.8)
-
-# hist(freq_outlier$Freq)
-
-hist((df_audio_charts_s_at_redund_scale$iforest_pred))
-summary(top_ifores_sample$iforest_pred)
-# ggbiplot(datos.pc, obs.scale=1 ) + 
-#   geom_point(colour=ifelse(df_audio_charts_s_at_redund$track_name %in% top_ifores_sample$track_name, "red", "blue") ) +
-#   geom_text_repel(aes(label="" )   ) +
-#   theme(legend.position="none" )
-
-ggbiplot::ggbiplot(df_audio_charts_s_at_redund.PCA, obs.scale=0.75 ,var.scale=0.75,alpha=0.05)
-
-df_audio_charts_s_at_redund.PCA$rotation
-
-```
-
-
-```{r}
-head(df_audio_charts_s_at_redund_scale[order(df_audio_charts_s_at_redund_scale$iforest_pred,
-                                                                  decreasing = T),],200) %>% 
-  arrange(-iforest_pred)
-
-df_audio_features[df_audio_features$external_urls_spotify%in% top_outilers_pop$URL, ] %>% 
-  select(track_name, instrumentalness, acousticness, danceability,valence,tempo )
-```
-
-
-```{r}
-#GRAFICO VIEJO
-#outlier con mayor frecuencia
-plot(CP1, CP2,
-     col=ifelse(df_audio_charts_s_at_redund$track_name %in% top_ifores_sample$track_name, "red", "blue"),
-     pch=ifelse(df_audio_charts_s_at_redund$external_urls_spotify %in% freq_outlier_menos_de_10$Var1,18,1),
-     cex=ifelse(df_audio_charts_s_at_redund$external_urls_spotify %in% freq_outlier_menos_de_10$Var1,2,1),
-     main = "Temas del chart proyectados sobre las PCA y detección de outliers")
-legend( x = "bottomright", legend=c("Canciones del chart", "Outliers del chart", "Outliers del chart con mayor frecuencia"),
-       col=c("blue", "red", "red"), pch = c(1, 1,18) , cex = 0.8)
-```
-
 # Preguntas de investigacion
 
 ## Patron Comun Canciones del Chart
@@ -1071,25 +646,6 @@ scale_vble <- function(x){
   (x - mean(x, na.rm = T))/sd(x, na.rm = T)
 }
 
-#borro NA y escalo los audio features del chart
-join_audio_charts_complete <- na.omit(join_audio_charts)
-join_audio_charts_complete_scale <- join_audio_charts_complete %>% 
-  distinct() %>% 
-  select(features_continuas)  %>% 
-  mutate_all(scale_vble)
-nrow(join_audio_charts_complete_scale)
-
-#borro NA y escalo los audio features 
-df_audio_features_complete <- na.omit(df_audio_features)
-df_audio_features_complete_scale <- df_audio_features_complete %>%  
-  distinct() %>% 
-  select(features_continuas) %>% 
-  mutate_all(scale_vble)
-nrow(df_audio_features_complete)
-
-#chequeo eliminacion de NA's
-sum(!complete.cases(join_audio_charts_complete_scale))  
-sum(!complete.cases(df_audio_features_complete))  
 ```
 ```{r}
 #anti_join
@@ -1111,205 +667,7 @@ anti_join_audio_charts_complete_scale <- anti_join_audio_charts_complete %>%
   mutate_all(scale_vble)
 nrow(anti_join_audio_charts_complete_scale)
 
-
-length(unique(df_audio_features$external_urls_spotify))
-length(unique(anti_join_audio_charts$external_urls_spotify))
-length(unique(df_charts$URL))
-length(unique(join_audio_charts$external_urls_spotify))
-
 ```
-### Histogramas comparativos
-(comentar o descomentar segun se trate de la comparacion de los features de los temas del chart vs todos o solo vs no charts)
-```{r}
-# par(mfrow=c(4,3))
-for (i in features_continuas) {
-  print(join_audio_charts_complete_scale %>%
-            mutate(is_chart = "chart") %>%
-            rbind(anti_join_audio_charts_complete_scale %>%
-              mutate(is_chart= "no_chart")) %>%
-            # rbind(df_audio_features_complete_scale %>%
-              # mutate(is_chart= "all")) %>%
-            gather(key = variable, value = valor, 1:11) %>% 
-            filter(variable== i ) %>%
-              ggplot( aes(valor, fill = is_chart))+
-                labs(title = paste("Densidad de", i),
-                     subtitle = "Comparacion temas de chart vs no-chart")+
-                geom_density(alpha = 0.2)) 
-}
-
-```
-
-
-```{r}
-for (i in features_continuas) {
-  print(join_audio_charts_complete_scale %>%
-            mutate(is_chart = "chart") %>%
-            rbind(anti_join_audio_charts_complete_scale %>%
-              mutate(is_chart= "no_chart")) %>%
-            # rbind(df_audio_features_complete_scale %>%
-              # mutate(is_chart= "all")) %>%
-            gather(key = variable, value = valor, 1:11) %>% 
-            filter(variable== i ) %>%
-              ggplot( aes(valor, fill = is_chart))+
-                labs(title = paste("Boxplot de", i),
-                     subtitle = "Comparacion temas de chart vs no-chart")+
-                geom_boxplot(alpha = 0.2)) 
-}
-
-```
-
-
-```{r}
-x <- join_audio_charts %>%
-  distinct(external_urls_spotify, .keep_all = T) %>% 
-  dplyr::select(features_categoricas) %>% 
-  mutate(is_chart = "chart") %>%
-  rbind(anti_join_audio_charts %>%
-            distinct(external_urls_spotify, .keep_all = T) %>% 
-            dplyr::select(features_categoricas) %>%
-              mutate(is_chart= "no_chart")) #%>% 
-  # gather(key = variable, value = valor, 1:5) #%>% 
-  #   ggplot( aes(x=valor, y = valor, fill = variable))+
-  # geom_bar(stat="identity", width = 1)+
-  #     coord_polar("y", start=0)+
-  #     facet_grid(variable~is_chart)
-  # 
-  #   geom_bar(stat="identity", width=1) +
-  # labs(title = paste("Barplot de variables categóricas"),
-  #      subtitle = "Comparacion temas de chart vs no-chart")+
-
-
-
-```
-#### Proporcion de lenguaje explicito
-```{r}
-cat_join <- join_audio_charts %>%
-  distinct(external_urls_spotify, .keep_all = T) %>% 
-  dplyr::select(features_categoricas) %>% 
-  mutate(is_chart = "chart") 
-
-cat_anti <- anti_join_audio_charts %>%
-            distinct(external_urls_spotify, .keep_all = T) %>% 
-            dplyr::select(features_categoricas) %>%
-              mutate(is_chart= "no_chart")
-
-
-
-x <- data.frame(table(cat_join[,"explicit"] )) %>% 
-  ggplot( aes(x="", y=Freq, fill=Var1)) +
-  geom_bar(stat="identity", width=1) +
-  coord_polar("y", start=0)+
-  theme_void()+
-  labs(title = "Proporción de explicit", subtitle = "Charts")+
-  scale_fill_discrete(name = "¿Lenguaje explícito?", labels = c("Falso", "Verdadero"))+
-  theme(legend.position = "bottom")
-  # theme(legend.position = "none")
-  # scale_fill_discrete(name = "¿Lenguaje explícito?", labels = c("Falso", "Verdadero"))
-
-y <- data.frame(table(cat_anti[,"explicit"] )) %>% 
-  ggplot( aes(x="", y=Freq, fill=Var1)) +
-  geom_bar(stat="identity", width=1) +
-  coord_polar("y", start=0)+
-  theme_void()+
-  labs(subtitle = "No-charts")+
-  theme(legend.position = "none")
-gridExtra::grid.arrange(x, y, ncol=2)
-```
-##### pie plot de todas 
-```{r}
-
-for(i in features_categoricas){
-x <- data.frame(table(cat_join[,i] )) %>% 
-  ggplot( aes(x="", y=Freq, fill=Var1)) +
-  geom_bar(stat="identity", width=1) +
-  coord_polar("y", start=0)+
-  theme_void()+
-  labs(title = paste("Proporción de", i) , subtitle = "En charts")+
-  theme(legend.position = "bottom")
-  # theme(legend.position = "none")
-  # scale_fill_discrete(name = "¿Lenguaje explícito?", labels = c("Falso", "Verdadero"))
-
-y <- data.frame(table(cat_anti[,i] )) %>% 
-  ggplot( aes(x="", y=Freq, fill=Var1)) +
-  geom_bar(stat="identity", width=1) +
-  coord_polar("y", start=0)+
-  theme_void()+
-  labs(subtitle = "En no-charts")+
-  theme(legend.position = "none")
-gridExtra::grid.arrange(x, y, ncol=2)}
-
-```
-
-
-
-```{r}
-join_audio_charts %>%
-  distinct(external_urls_spotify, .keep_all = T) %>% 
-  dplyr::select(cant_markets, danceability, liveness, loudness) %>% 
-  mutate(is_chart = "chart") %>%
-  rbind(anti_join_audio_charts %>%  
-          distinct(external_urls_spotify, .keep_all = T) %>% 
-          dplyr::select(cant_markets, danceability, liveness, loudness) %>%
-          mutate(is_chart= "no_chart")) %>%
-  gather(key = variable, value = valor, 1:4) %>%
-  ggplot( aes(valor, fill = is_chart))+
-  labs(title = paste("Boxplot de variables seleccionadas"),
-                     subtitle = "Comparacion temas de chart vs no-chart")+
-  geom_boxplot(alpha = 0.2)+
-  scale_fill_discrete(name = "¿Está en el chart?", labels = c("Chart", "No-chart"))+
-  facet_wrap(~variable, scales = "free_x")
-```
-
-
-Intento de hacer los histogramas de densidad con facete wrap PERO NO FUNCÓ !
-```{r}
-join_audio_charts_complete_scale %>%
-  mutate(is_chart = "chart") %>%
-  rbind(anti_join_audio_charts_complete_scale %>% 
-          mutate(is_chart= "no_chart")) %>%
-  gather(key = variable, value = valor, 1:11) %>% 
-  # filter(!(variable %in% c("instrumentalness", "speechiness", "acousticness")) ) %>%
-  filter(variable== "danceability" ) %>%
-  ggplot( aes(valor, fill = is_chart))+ 
-  geom_density(alpha = 0.2)+
-  facet_wrap(~variable, ncol=1)
-
-join_audio_charts_complete_scale %>%
-  mutate(is_chart = "chart") %>%
-  rbind(anti_join_audio_charts_complete_scale %>% 
-          mutate(is_chart= "no_chart")) %>%
-  gather(key = variable, value = valor, 1:11) %>% 
-  filter(!(variable %in% c("instrumentalness", "speechiness", "acousticness", "cant_markets")) ) %>%
-  # filter(variable %in% c("danceability", "tempo")) %>%
-  # filter(variable== "tempo" ) %>%
-  ggplot( aes(valor, fill = is_chart))+ 
-  geom_density(alpha = 0.2)+
-  facet_wrap(~variable, ncol=3)
-  # facet_grid(variable~., space="free")
-```
-
-
-### Comparacion de medias
-```{r}
-media_no_chart = apply(anti_join_audio_charts_complete_scale,2, FUN = mean )
-media_chart =apply(join_audio_charts_complete_scale,2, FUN = mean )
-
-data.frame(media_chart, media_no_chart) %>% 
-  mutate(dif = ((media_chart/ media_no_chart)-1)*100)
-
-```
-
-
-### Comparación de Coef de Var
-```{r}
-cv_no_chart = apply(anti_join_audio_charts_complete_scale,2, FUN =statip::cv )
-cv_chart =apply(join_audio_charts_complete_scale,2, FUN = statip::cv )
-
-data.frame(cv_chart, cv_no_chart) %>% 
-  mutate(dif = ((cv_chart/ cv_no_chart)-1)*100)
-
-```
-
 
 ## Qué temas perduran mucho en el ranking
 
@@ -1332,80 +690,6 @@ join_audio_charts %>%
 ```
 
 
-
-## Variaciones de los features agrupados por artistas, album name, año lanzamiento 
-```{r}
-#Agregar por los artistas y clacular la varianza de los features entre sus temas
-
-for (i in features_continuas){
-
- art_af <- aggregate(df_audio_features[, i], by= list(df_audio_features$artist_name), FUN= var)
- alb_af <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_name), FUN= var)
- year_af <- aggregate(df_audio_features[, i], by= list(df_audio_features$album_release_year), FUN= var)
-
- boxplot(art_af[,2], alb_af[,2], year_af[,2], names= c("artista", "album","year"), main =paste("Varianzas de",i), horizontal = TRUE, las=1)
-}
-
-par( mar=c(5, 7, 5, 2))
-for (i in (c("tempo", "acousticness", "danceability"))){
-
- art_af <- aggregate(anti_join_audio_charts[, i], by= list(anti_join_audio_charts$artist_name), FUN= var)
- alb_af <- aggregate(anti_join_audio_charts[, i], by= list(anti_join_audio_charts$album_name), FUN= var)
- year_af <- aggregate(anti_join_audio_charts[, i], by= list(anti_join_audio_charts$album_release_year), FUN= var)
-
- art_CH <- aggregate(join_audio_charts[, i], by= list(join_audio_charts$artist_all), FUN= var)
- alb_CH <- aggregate(join_audio_charts[, i], by= list(join_audio_charts$album_name), FUN= var)
- year_CH <- aggregate(join_audio_charts[, i], by= list(join_audio_charts$album_release_year), FUN= var)
- 
- 
- boxplot(art_af[,2], art_CH[,2], alb_af[,2], alb_CH[,2], year_af[,2], year_CH[,2], names= c("artista_nonCH", "artista_CH", "album_nonCH", "album_CH", "year_nonCH", "year_CH"), main=paste("Varianzas de",i, "(distinción chart vs no chart)"), horizontal = TRUE, las=1)
-}
-
-
-
-
-```
-
-
-## evolucion de los streams
-
-```{r}
-library(vars)
-
-df_charts %>% 
-   mutate(week_start=as.Date(week_start)) %>% 
-  group_by(week_start) %>% 
-  dplyr::summarise(reproductions = sum(Streams)) %>% 
-  ggplot(aes(week_start, reproductions/10^6, color = "k", label = "Streams") )+
-  geom_line()+
-  geom_line(aes(x= week_start,y= rollmean(reproductions/10^6, 8, na.pad = T), color = "darkblue" , label = "Media movil" )  )+
-  # geom_point()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-        legend.position = "bottom")+
-  labs(title = "Cantidad total de reproducciones por semana de canciones del chart",
-       x = "Fecha", y ="Millones de reproducciones", fill = "Variable")+
-  scale_y_continuous(labels = scales::comma)+
-  scale_color_discrete(name = "Variable", labels = c("Media movil", "Streams"))
-
-
-#agregar media movil
-# cuanto duran los temas en el top 1 ??
-
-```
-```{r}
-df_charts %>% 
-   mutate(week_start=as.Date(week_start)) %>% 
-  filter(Position == 1 ) %>% 
-  group_by(week_start) %>% 
-  dplyr::summarise(reproductions = sum(Streams)) %>% 
-  ggplot(aes(week_start, reproductions/10^6))+
-  geom_line()+
-  # geom_point()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  labs(title = "Cantidad total de reproducciones por semana de canciones del chart",
-       x = "Fecha", y ="Millones de reproducciones")+
-  scale_y_continuous(labels = scales::comma)
-```
 # ¿Cuánto tiempo tardan los temas en entrar en el chart?
 
 ```{r}
@@ -1463,9 +747,6 @@ x %>% arrange(-tiempo_podio_dias)
 
 # ¿Cuánto tiempo están en un chart? 
 
-
-
-
 ```{r}
 # cantidad de semanas que estuvieron en el chart
 
@@ -1507,160 +788,5 @@ popularidad[is.na(popularidad$indicador),]
 ```
 
 
-
-
-```{r}
-# panel de datos
-panel <- df_charts %>%  
-  # select(Artist, week_start, Position , Track_Name,  everything(.)) %>% 
-  arrange(Artist, Track_Name, week_start, Position) %>% 
-  group_by(Artist, Track_Name) %>% 
-  dplyr::mutate(contador = 1:n()) %>% 
-  dplyr::select(Artist, week_start,contador, Position , Track_Name,  everything(.))
-panel
-
-
-#mas populares
-filtro_top <- slice_max(.data = popularidad, n = 10, order_by = indicador)
-panel %>% 
-  mutate(week_start = as.Date(week_start)) %>% 
-  filter(URL %in% filtro_top$URL) %>%
-  ggplot(aes(week_start, -Position, color = URL)) +
-  geom_point()+
-  geom_line()+
-  # geom_smooth()+
-  theme(legend.position = "none") +
-  labs(title = "Dinámica de las canciones más populares", subtitle = "Basado en indicador definido anteriormente",
-       x = "Fecha", y = "Posición (en negativo)")
-
-# cantidad reproducciones
-filtro_top <- slice_max(.data = popularidad, n = 5, order_by = streams_sum)
-panel %>% 
-  mutate(week_start = as.Date(week_start)) %>% 
-  filter(URL %in% filtro_top$URL) %>%
-  ggplot(aes(week_start, -Position, color = URL)) +
-  geom_point()+
-  geom_line()+
-  # geom_smooth()+
-  theme(legend.position = "none") +
-  labs(title = "Dinámica de las canciones con mayor reproducciones",
-       x = "Fecha", y = "Posición (en negativo)")
-
-
-#mayor cantidad de semanas
-filtro_top <- slice_max(.data = popularidad, n = 7, order_by = semanas_sum)
-panel %>% 
-  mutate(week_start = as.Date(week_start)) %>% 
-  filter(URL %in% filtro_top$URL) %>%
-  ggplot(aes(week_start, -Position, color = URL)) +
-  geom_point()+
-  geom_line()+
-  # geom_smooth()+
-  theme(legend.position = "none") +
-  labs(title = "Dinámica de las canciones con mayor prescencia en el chart",
-       subtitle = "En cantidad de semanas",
-       x = "Fecha", y = "Posición (en negativo)")
-
-
-###########################################
- # MENORES
-###########################################
-
-#canciones menos populares
-filtro_min <- slice_min(.data = popularidad, n = 150, order_by = c(indicador))
-panel %>% 
-  mutate(week_start = as.Date(week_start)) %>% 
-  filter(URL %in% filtro_min$URL) %>%
-  ggplot(aes(week_start, -Position, color = URL)) +
-  geom_point()+
-  geom_line()+
-  # geom_smooth()+
-  theme(legend.position = "none") +
-  labs(title = "Dinámica de las canciones menos populares", subtitle = "Basado en indicador definido anteriormente",
-       x = "Fecha", y = "Posición (en negativo)")
-
-
-# menor cantidad reproducciones
-filtro_min <- slice_min(.data = popularidad, n = 20, order_by = streams_sum)
-panel %>% 
-  mutate(week_start = as.Date(week_start)) %>% 
-  filter(URL %in% filtro_min$URL) %>%
-  ggplot(aes(week_start, -Position, color = URL)) +
-  geom_point()+
-  geom_line()+
-  # geom_smooth()+
-  theme(legend.position = "none") +
-  labs(title = "Dinámica de las canciones con menores reproducciones",
-       x = "Fecha", y = "Posición (en negativo)")
-
-# menor cantidad reproducciones
-filtro_min <- slice_min(.data = popularidad, n = 5, order_by = semanas_sum)
-panel %>% 
-  mutate(week_start = as.Date(week_start)) %>% 
-  filter(URL %in% filtro_min$URL) %>%
-  ggplot(aes(week_start, -Position, color = URL)) +
-  geom_point()+
-  geom_line()+
-  # geom_smooth()+
-  theme(legend.position = "none") +
-  labs(title = "Dinámica de las canciones con menores reproducciones",
-       x = "Fecha", y = "Posición (en negativo)")
-
-
-```
-
-```{r}
-#mas populares
-
-par(mfrow =c(1,2))
-filtro_top <- slice_max(.data = popularidad, n = 10, order_by = indicador)
-x <- panel %>% 
-  mutate(week_start = as.Date(week_start)) %>% 
-  filter(URL %in% filtro_top$URL) %>%
-  ggplot(aes(week_start, -Position, color = URL)) +
-  geom_point()+
-  geom_line()+
-  # geom_smooth()+
-  theme(legend.position = "none", plot.title = element_text(size=10)) +
-  labs(title = "Dinámica del top 10 de canciones más populares", y = "Posición (en negativo)", x="")
-
-filtro_min <- slice_min(.data = popularidad, n = 150, order_by = c(indicador))
-y <- panel %>% 
-  mutate(week_start = as.Date(week_start)) %>% 
-  filter(URL %in% filtro_min$URL) %>%
-  ggplot(aes(week_start, -Position, color = URL)) +
-  geom_point()+
-  geom_line()+
-  # geom_smooth()+
-  theme(legend.position = "none", plot.title = element_text(size=10)) +
-  labs(title = "Dinámica de las 150 canciones menos populares", x="", y="")
-
-gridExtra::grid.arrange(x,y, ncol=2)
-```
-
-
-
-```{r}
-df_charts %>% arrange(Artist) %>% 
-  filter(Artist =="IU")
-
-join_audio_charts %>% 
-  filter(artist_name =="IU")
-```
-
-
-
-## ¿Qué características tienen las bandas que solo una vez se pudieron meter en el ranking?
-```{r}
-# cantidad de bandas que se metieron una sola vez en el ranking
-# unique((df_charts %>% 
-unique((join_audio_charts %>% 
-  group_by(artist_key) %>% 
-  # group_by(Artist) %>% 
- dplyr:: summarise(n = n()) %>% 
-  arrange(n) %>% 
-  filter(n ==1))$artist_key)
-
-```
 
 
