@@ -17,13 +17,14 @@ library(lubridate)
 library(mice)
 library(randomForest)
 ```
-# CARGA DE BASES 
 
-## Bases Mateo
+# CARGA DE BASES 
 ```{r}
 df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
 df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
 df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
+df_lyrics <- read.csv("data/df_lyrics.csv")
+
 ```
 
 

@@ -3,6 +3,7 @@ title: "features_categoricos"
 output: html_notebook
 ---
 
+
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 library(ggplot2)
 library(tidyverse)
@@ -10,6 +11,18 @@ library(readxl)
 library(reshape)
 library(reshape2)
 library(mongolite)
+```
+
+
+
+```{r}
+lyrics = mongo(collection = "lyrics", db = "spotify_dm" )
+df_lyrics <- lyrics$find('{}')
+
+write.csv(df_lyrics, "data/df_lyrics.csv")
+
+df_lyrics <- read.csv("data/df_lyrics.csv")
+
 ```
 
 
@@ -28,17 +41,17 @@ nrow(df_audio_features)
 
 
 ```{r}
-features_categoricos <-c( 'explicit', 'key_name', 'mode_name',
+features_categoricas <-c( 'explicit', 'key_name', 'mode_name',
                           "key_mode", "album_type")#, 
                           #"artist_concat", "markets_concat")
 
-features_num <- c('acousticness', 'danceability', 'duration_ms', 'energy', 
+features_continuas <- c('acousticness', 'danceability', 'duration_ms', 'energy', 
               'instrumentalness', 'liveness', 'loudness', 'speechiness',  
               'tempo', 'valence')
 # features_categoricos <-c( explicit, disc_number,key_name, mode_name, key_mode, album_type)
 # time_signature
 
-summary(df_audio_features[,features_categoricos])
+summary(df_audio_features[,features_categoricas])
 
 table(df_audio_features$album_type)
 ```
@@ -83,16 +96,110 @@ chisq.test(tabla_key_mode)
 
 ```
 
+```{r}
+contar_market <- function(x){
+q <- length(unlist(strsplit(x, split = ",")))
+return (q)
+  }
+df_audio_features$cant_markets <- sapply(df_audio_features[,"markets_concat"], contar_market)
+
+summary(df_audio_features$cant_markets) #hay canciones en cero países. Están dadas de baja
+
+
+```
+
+```{r}
+x <- df_audio_features %>% 
+  group_by(track_name, external_urls_spotify)
+
+x$cant_markets <- sapply(x[,"markets_concat"], contar_market)
+
+summary(x$cant_markets) #hay canciones en cero países. Están dadas de baja
+
+
+
+```
 
 
 ## Join Charts y Audio Features
+
+### Nueva key de artist para el JOIN
+```{r}
+x <- df_audio_features %>% 
+  group_by(track_name, external_urls_spotify) %>% 
+  mutate(artist_new = paste(artist_name, collapse = ",|,")) %>%
+  ungroup() %>% 
+  mutate(artist_key = sub(",|,.*", "", artist_new)) %>% 
+  select(artist_name, artist_new, artist_key, everything(.)) %>% 
+  distinct(artist_key, external_urls_spotify, .keep_all = T)
+
+length(x[1,x$markets_concat])
+```
+
+
+```{r}
+join_audio_charts <- x %>% 
+  select("artist_name","artist_new","artist_key",
+         "track_name", "external_urls_spotify",
+         features_continuas, features_categoricas) %>% 
+  right_join( df_charts %>%
+               select( "Track_Name", "Artist", 
+                       "URL","Position", "Streams", "week_start", "week_end"),
+               by = c(
+                 # "track_name" = "Track_Name", 
+                      "artist_key" ="Artist", 
+                      "external_urls_spotify" = "URL"))
+```
+
+
+
+```{r}
+###################
+y <- join_audio_charts %>% 
+    filter(grepl("d32M6", external_urls_spotify))# %>% 
+  # distinct(Position, week_start)
+
+```
+
+
+```{r}
+glimpse(join_audio_charts)
+
+nrow(df_audio_features)
+nrow(x)
+
+nrow(df_charts)
+nrow(join_audio_charts)
+
+sum(!complete.cases(df_audio_features))
+sum(!complete.cases(join_audio_charts))
+sum(complete.cases(join_audio_charts))
+
+length(unique(join_audio_charts$artist_name))
+
+  # filter(grepl("d32M6", external_urls_spotify)) %>% 
+
+```
+
+
+
+```{r}
+x
+
+x %>% select(artist_key, artist_new,everything(.)) %>% 
+  filter(grepl("|", artist_new))
+```
+
+
+############################
 ```{r}
 join_audio_artist <- df_audio_features %>% 
   select("artist_name", "track_name", features_num, features_categoricos) %>% 
   right_join( df_charts %>%
                select( "Track_Name", "Artist" ), 
                       # "Position", "Streams", "week_start", "week_end"),
-              by = c("track_name" = "Track_Name", "artist_name" ="Artist"  ))
+              by = c("track_name" = "Track_Name", "artist_name" ="Artist"  )) 
+
 ```
 
 ```{r}
@@ -107,7 +214,6 @@ join_audio_artist
 # glimpse(df_audio_features)
 # glimpse(df_charts)
 ```
-
 
 ## Analisis de NA's de Audio Feature
 ```{r}
