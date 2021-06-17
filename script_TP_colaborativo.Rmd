@@ -4,7 +4,7 @@ output: html_notebook
 ---
 
 # LIBRERIAS
-```{r, warning=FALSE}
+```{r, echo=FALSE, warning=FALSE}
 library(corrplot)
 library(ggplot2)
 library(tidyverse)
@@ -50,12 +50,6 @@ q <- length(unlist(strsplit(x, split = ",")))
 return (q)
   }
 df_audio_features$cant_markets <- sapply(df_audio_features[,"markets_concat"], contar_market)
-
-summary(df_audio_features$cant_markets) #hay canciones en cero países. Están dadas de baja
-# df_audio_features[order(-df_audio_features$cant_markets),"cant_markets"]
-
-
-# head(df_audio_features[1:300,], 300)
 ```
 
 # VECTORES DE FEATURES
@@ -87,6 +81,58 @@ join_audio_charts <- df_audio_features %>%
 
 #HAY CHARTS QUE NO TIENEN FEATURES. HAY QUE TENERLO EN CUENTA PARA EL ANÁLISIS
 ```
+
+
+```{r}
+
+paste(names(join_audio_charts)[1:7],collapse = ",")
+
+
+
+
+
+```
+
+
+
+#Agregación de todas las semanas en charts
+```{r}
+
+features_continuas <- c('acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness',   'tempo', 'valence', 'cant_markets')
+
+features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "album_type")
+
+groupping_cols <- c("artist_name","artist_all","artist_key","track_name","external_urls_spotify","album_name","album_release_year")
+
+numeric_col_charts <- c("Position","Streams")
+
+week_start <- c("week_start")
+
+chart_group <- join_audio_charts %>% 
+                group_by(artist_name,artist_all,artist_key,track_name,external_urls_spotify,album_name,album_release_year)
+
+
+continuas_summarized = chart_group %>% summarise_at(features_continuas, mean, na.rm = TRUE)
+categoricas_summarizes = chart_group %>% summarise_at(features_categoricas, first)
+numeric_charts_summarizes = chart_group %>% summarise(across(numeric_col_charts, list(min=min,max=max,avg=mean)))
+cant_semanas = chart_group %>% summarise_at(week_start, n_distinct)
+names(cant_semanas$week_start) <- "cant_semanas"
+
+aggregation_df <- cbind(numeric_charts_summarizes, cant_semanas[,-c(1:7)],continuas_summarized[,-c(1:7)], categoricas_summarizes[,-c(1:7)])
+
+names(aggregation_df)[names(aggregation_df) == 'week_start'] <- "cant_semanas"
+
+names(aggregation_df)
+
+cols <- names(aggregation_df)
+numeric_cols <- cols[sapply(aggregation_df,is.numeric)]
+numeric_cols[2:length(numeric_cols)]
+
+summary(aggregation_df[,numeric_cols[2:length(numeric_cols)]])
+
+
+```
+
 
 
 # HISTOGRAMAS Y BARPLOTS DE VARIABLES
