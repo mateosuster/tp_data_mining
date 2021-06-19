@@ -5,17 +5,12 @@ output: html_notebook
 
 # LIBRERIAS
 ```{r, echo=FALSE, warning=FALSE}
-library(corrplot)
 library(ggplot2)
 library(tidyverse)
 library(readxl)
-library(mongolite)
 library(sqldf)
-library(isotree)
-library(Rlof)
 library(lubridate)
-library(mice)
-library(randomForest)
+library(dplyr)
 ```
 
 # CARGA DE BASES 
@@ -37,7 +32,7 @@ df_audio_features <- df_audio_features %>%
   mutate(artist_all = paste(artist_name, collapse = ",|,")) %>%
   ungroup() %>% 
   mutate(artist_key = sub(",|,.*", "", artist_all)) %>% 
- dplyr::select(artist_name, artist_all, artist_key, everything(.)) %>% 
+  dplyr::select(artist_name, artist_all, artist_key, everything(.)) %>% 
   distinct(artist_key, external_urls_spotify, .keep_all = T) %>% 
   as.data.frame()
 ```
@@ -83,20 +78,8 @@ join_audio_charts <- df_audio_features %>%
 ```
 
 
-```{r}
-
-paste(names(join_audio_charts)[1:7],collapse = ",")
-
-
-
-
-
-```
-
-
-
 #Agregación de todas las semanas en charts
-```{r}
+```{r, warning=FALSE}
 
 features_continuas <- c('acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness',   'tempo', 'valence', 'cant_markets')
 
@@ -122,14 +105,20 @@ aggregation_df <- cbind(numeric_charts_summarizes, cant_semanas[,-c(1:7)],contin
 
 names(aggregation_df)[names(aggregation_df) == 'week_start'] <- "cant_semanas"
 
-names(aggregation_df)
-
 cols <- names(aggregation_df)
 numeric_cols <- cols[sapply(aggregation_df,is.numeric)]
-numeric_cols[2:length(numeric_cols)]
 
 summary(aggregation_df[,numeric_cols[2:length(numeric_cols)]])
 
+
+```
+
+
+```{r}
+df_lyrics_unicas <- df_lyrics %>% distinct(artist_name, track_name, lyrics)
+nrow(df_lyrics_unicas)
+
+merge(aggregation_df, df_lyrics_unicas, by.x = c("artist_name","track_name"), by.y= c("artist_name","track_name"), all.x=TRUE, all.y = FALSE)
 
 ```
 
