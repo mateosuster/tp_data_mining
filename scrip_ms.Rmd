@@ -4,27 +4,10 @@ output: html_notebook
 ---
 
 
-```{r message=FALSE, warning=FALSE, include=FALSE}
-library(ggplot2)
-library(tidyverse)
-library(readxl)
-library(reshape)
-library(reshape2)
-library(mongolite)
-```
-
-
-
 ```{r}
-lyrics = mongo(collection = "lyrics", db = "spotify_dm" )
-df_lyrics <- lyrics$find('{}')
-
-write.csv(df_lyrics, "data/df_lyrics.csv")
-
-df_lyrics <- read.csv("data/df_lyrics.csv")
+merge(aggregation_df, df_lyrics_unicas, by.x = c("artist_name","track_name"), by.y= c("artist_name","track_name"), all.x=TRUE, all.y = FALSE)
 
 ```
-
 
 
 ```{r}

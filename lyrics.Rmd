@@ -1,0 +1,177 @@
+---
+title: "lyrics"
+output: html_notebook
+---
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(readxl)
+library(reshape)
+library(reshape2)
+library(mongolite)
+```
+
+
+
+```{r}
+lyrics = mongo(collection = "lyrics", db = "spotify_dm" )
+df_lyrics <- lyrics$find('{}')
+
+# write.csv(df_lyrics, "data/df_lyrics.csv")
+
+library("textcat")
+library(tm)
+
+df_lyrics <- read.csv("data/df_lyrics.csv") %>% 
+  select(-X)
+
+df_lyrics_unicas <- df_lyrics %>% 
+  distinct(artist_name, track_name, lyrics)
+
+df_lyrics %>% 
+  distinct(artist_name, track_name)
+
+#filtro de idioma
+spa_lyrics = df_lyrics_unicas[textcat(df_lyrics_unicas$lyrics)=="spanish",]
+spa_lyrics
+
+en_lyrics = df_lyrics_unicas[textcat(df_lyrics_unicas$lyrics) %in% c("english", "scots"),]
+en_lyrics
+
+#chequeo cantidad de canciones por idioma
+nrow(en_lyrics) + nrow(spa_lyrics)
+nrow(df_lyrics_unicas)
+
+# tabla contingencia de idiomas
+idiomas = textcat(df_lyrics_unicas$lyrics)
+sort(table(idiomas), decreasing = T)
+
+```
+
+
+```{r}
+# comentar y descomentar según se elija un dataframe u otro
+# df_lyrics_seleccionado = df_lyrics_unicas
+df_lyrics_seleccionado = en_lyrics
+
+corpus = Corpus(VectorSource(enc2utf8(df_lyrics_seleccionado$lyrics)))
+# inspect(corpus[1])
+
+# Eliminamos espacios
+corpus.pro <- tm_map(corpus, stripWhitespace)
+# inspect(corpus.pro[1])
+
+# Elimino todo lo que aparece antes del primer []
+corpus.pro <- tm_map(corpus.pro, content_transformer(
+  function(x) sub('^.+?\\[.*?\\]',"", x)))
+# inspect(corpus.pro[1])
+
+# Elimino las aclaraciones en las canciones, por ejemplo:
+# [Verso 1: Luis Fonsi & Daddy Yankee]
+corpus.pro <- tm_map(corpus.pro, content_transformer(
+  function(x) gsub('\\[.*?\\]', '', x)))
+
+# Elimino todo lo que aparece luego de 'More on Genius'
+corpus.pro <- tm_map(corpus.pro, content_transformer(function(x) gsub("More on Genius.*","", x)))
+# inspect(corpus.pro[1])
+
+# Convertimos el texto a minúsculas
+corpus.pro <- tm_map(corpus.pro, content_transformer(tolower))
+
+# removemos números
+corpus.pro <- tm_map(corpus.pro, removeNumbers)
+
+# Podemos agregar palabras a las stopwords
+# my_stopwords <- append(stopwords("spanish"), 'palabra')
+my_stopwords <- append(stopwords("english"), 'yeah')
+
+# Removemos palabras vacias en español
+corpus.pro <- tm_map(corpus.pro, removeWords, stopwords("english"))
+corpus.pro <- tm_map(corpus.pro, removeWords, my_stopwords)
+# corpus.pro <- tm_map(corpus.pro, removeWords, stopwords("spanish"))
+# inspect(corpus.pro[1])
+
+
+# Removemos puntuaciones
+corpus.pro <- tm_map(corpus.pro, removePunctuation)
+
+# Removemos todo lo que no es alfanumérico
+corpus.pro <- tm_map(corpus.pro, content_transformer(function(x) str_replace_all(x, "[[:punct:]]", " ")))
+
+# En tm_map podemos utilizar funciones prop
+library(stringi)
+replaceAcentos <- function(x) {stri_trans_general(x, "Latin-ASCII")}
+corpus.pro <- tm_map(corpus.pro, replaceAcentos)
+
+# Eliminamos espacios que se van generando con los reemplazos
+corpus.pro <- tm_map(corpus.pro, stripWhitespace)
+```
+
+
+```{r}
+####################################################################
+####### Generación de la Matríz Término-Documento del corpus #######
+####################################################################
+
+dtm <- TermDocumentMatrix(corpus.pro, 
+                          control = list(weighting = "weightTf"))
+
+matriz_td <- as.matrix(dtm)
+matriz_td
+```
+
+
+```{r}
+################################################################
+####### Conteos de frecuencia de los términos del corpus #######
+################################################################
+
+# Calculamos la frecuencia de cada término en el corpus
+freq_term <- sort(rowSums(matriz_td),decreasing=TRUE)
+
+# Generamos un dataframe con esta sumatoria (de rows)
+df_freq <- data.frame(termino = names(freq_term), frecuencia=freq_term)
+row.names(df_freq) <- NULL
+
+N=15
+barplot(df_freq[1:N,]$frecuencia, las = 2, names.arg = df_freq[1:N,]$termino,
+        col ="lightblue", main ="Palabras más frecuentes",
+        ylab = "Frecuencia de palabras", ylim = c(0, max(df_freq$frecuencia)+300))
+
+
+topK = head(df_freq, 100)
+
+# Visualización de los resultados
+# Nube de Etiquetas
+library("wordcloud")
+library("RColorBrewer")
+
+par(bg="grey30") # Fijamos el fondo en color gris
+
+set.seed(1234)
+wordcloud(words = topK$termino, freq = topK$frecuencia, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(4, "Dark2"))
+
+
+
+```
+
+
+# Explicit
+```{r}
+library(sentimentr)
+y="Hello. Fuck. Go"
+x <- profanity(y,profanity_list = unique(tolower(lexicon::profanity_zac_anger)))
+x
+
+z <- x[x$profanity_count==1,2]
+
+z <- z$sentence_id[1]
+
+y <- str_split(y,". ")
+y[[1]][z]
+```
+
