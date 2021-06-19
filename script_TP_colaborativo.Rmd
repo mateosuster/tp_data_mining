@@ -16,8 +16,8 @@ library(dplyr)
 # CARGA DE BASES 
 ```{r}
 df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
-df_charts <- read.csv("data/df_charts_sin_duplicados.csv")
-df_audio_features <- read.csv("data/audio_features_plano_sin_duplicados.csv")
+df_charts_raw <- read.csv("data/df_charts_sin_duplicados.csv")
+df_audio_features_raw <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 df_lyrics <- read.csv("data/df_lyrics.csv")
 
 ```
@@ -25,9 +25,8 @@ df_lyrics <- read.csv("data/df_lyrics.csv")
 
 ## Nueva Corrección duplicados
 ```{r}
-#borro duplicados que quedaron en el audio_features
-#queda listo para el join con chrats
-df_audio_features <- df_audio_features %>% 
+# DF listo para el join con chrats
+df_audio_features <- df_audio_features_raw %>% 
   group_by(track_name, external_urls_spotify) %>% 
   mutate(artist_all = paste(artist_name, collapse = ",|,")) %>%
   ungroup() %>% 
@@ -39,13 +38,30 @@ df_audio_features <- df_audio_features %>%
 
 # CREACION `cant_markets`
 ```{r}
-
 contar_market <- function(x){
 q <- length(unlist(strsplit(x, split = ",")))
 return (q)
   }
 df_audio_features$cant_markets <- sapply(df_audio_features[,"markets_concat"], contar_market)
 ```
+
+# Charts
+```{r}
+#metrica de popularidad
+df_charts <- df_charts_raw %>% 
+  group_by(Artist, Track_Name, URL) %>%
+  dplyr:: summarise(semanas_sum = n(),
+            streams_sum = (sum(Streams, na.rm = T)/10^6 ),
+            streams_min = (min(Streams)/10^6 ),
+            streams_max = (max(Streams)/10^6 ),
+            position_avg = mean(Position, na.rm = T),
+            position_min = min(Position), 
+            position_max = max(Position)) %>% 
+  ungroup() %>% 
+  mutate(indicador = as.numeric(streams_sum*semanas_sum/position_avg) )
+
+```
+
 
 # VECTORES DE FEATURES
 ```{r}
@@ -57,25 +73,29 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode", "albu
 
 ```
 
+
+
 # RIGTH JOIN `audio_features` Y `charts`
 ```{r}
-
 #Armamos un join para tener una tabla de charts con las caracteristicas de las canciones
 # deberian quedar 22993 filas completas
 join_audio_charts <- df_audio_features %>% 
   select("artist_name","artist_all","artist_key",
          "track_name", "external_urls_spotify", "album_name", "album_release_year",
          all_of(features_continuas), all_of(features_categoricas)) %>% 
-  right_join( df_charts %>%
-               select( "Track_Name", "Artist", 
-                       "URL","Position", "Streams", "week_start", "week_end"),
+  right_join( df_charts,# %>%
                by = c(
                  "track_name" = "Track_Name", 
                       "artist_key" ="Artist", 
                       "external_urls_spotify" = "URL"))
 
 #HAY CHARTS QUE NO TIENEN FEATURES. HAY QUE TENERLO EN CUENTA PARA EL ANÁLISIS
+library(mice)
+md.pattern(join_audio_charts, rotate.names = TRUE)
+popularidad[is.na(popularidad$indicador),]
+
 ```
+
 
 
 #Agregación de todas las semanas en charts
@@ -726,61 +746,6 @@ join_audio_charts %>%
 ```
 
 
-# ¿Cuánto tiempo tardan los temas en entrar en el chart?
-
-```{r}
-x <- df_charts %>% 
-  mutate(week_start=as.Date(week_start),
-         # week_end = as.Date(week_end),
-         week_year = (year(week_start))) %>%
-  group_by(Artist, Track_Name, URL) %>% 
-  dplyr::summarise( day_in = min(week_start),
-             year_in = year(day_in)) %>% 
-  ungroup() %>% 
-  left_join(df_audio_features %>%
-              dplyr::select("artist_key","track_name", "external_urls_spotify",
-                    "album_release_date_precision", "album_release_date",,"album_release_year") %>%
-              mutate(album_release_date = as.Date(album_release_date)),
-            by = c(  "Track_Name"="track_name" ,
-                   "Artist"= "artist_key", "URL"=  "external_urls_spotify" )) %>% 
-  mutate( # tiempo_entrada_dias = day_in - album_release_date,
-         tiempo_entrada_dias = case_when(day_in < album_release_date ~ 0,
-                                         T ~ as.double(day_in - album_release_date)),
-         tiempo_entrada_anio = year_in - year(album_release_date)) %>% 
-  dplyr::select(Artist, Track_Name, album_release_date_precision,
-                    album_release_date, day_in, tiempo_entrada_dias, year_in,tiempo_entrada_anio)
-x %>% arrange(-tiempo_entrada_dias)
-
-```
-
-
-# ¿Cuánto tarda en alcanzar su pico? 
-
-```{r}
-x <- df_charts %>% 
-  mutate(week_start=as.Date(week_start),
-         week_year = (year(week_start))) %>%
-  filter(Position == 1) %>% 
-  group_by(Artist, Track_Name, URL) %>% 
-  dplyr::summarise( day_podio = min(week_start),
-             year_podio = year(day_podio)) %>% 
-  ungroup() %>% 
-  left_join(df_charts %>% 
-              mutate(week_start=as.Date(week_start) ), 
-            by = c( "Track_Name" ,"Artist" , "URL" )  ) %>% 
-  group_by(Artist, Track_Name, URL, day_podio, year_podio) %>%
-  dplyr::summarise( day_in = min(week_start),
-             year_in = year(day_in) ) %>% 
-  ungroup() %>% 
-  mutate(  tiempo_podio_dias = day_podio - day_in,
-         # tiempo_entrada_dias = case_when(day_in < album_release_date ~ 0,
-         #                                 T ~ as.double(day_in - album_release_date)),
-         tiempo_podio_anio = year_podio - year_in  )
-x %>% arrange(-tiempo_podio_dias)  
-
-```
-
-
 # ¿Cuánto tiempo están en un chart? 
 
 ```{r}
@@ -803,25 +768,6 @@ df_charts %>%
 
 ```
 
-
-## Evolucion de los temas en el chart desde el momento 0
-
- Evolucion de las 5 canciones que hayan alcanzado el top 1 con mayores reproducciones
- Evolucion de las 5 canciones no hayan superado el top 190 con menores reproducciones
-```{r}
-# indicador de popularidad
-popularidad <- df_charts %>% 
-  group_by(Artist, Track_Name, URL) %>% 
- dplyr:: summarise(semanas_sum = n(),
-            streams_sum = (sum(Streams, na.rm = T)/10^6 ),
-            position_avg = mean(Position, na.rm = T)) %>% 
-  ungroup() %>% 
-  mutate(indicador = as.numeric(streams_sum*semanas_sum/position_avg) )
-
-
-md.pattern(popularidad, rotate.names = TRUE)
-popularidad[is.na(popularidad$indicador),]
-```
 
 
 
