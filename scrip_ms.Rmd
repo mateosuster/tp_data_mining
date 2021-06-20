@@ -3,6 +3,83 @@ title: "features_categoricos"
 output: html_notebook
 ---
 
+```{r}
+####################################################################
+####### Generación de la Matríz Término-Documento del corpus #######
+####################################################################
+corpus.pro2tdm <- function(corpus.pro, ponderacion, n_terms){
+  #matriz TD 
+  dtm <- TermDocumentMatrix(corpus.pro,
+                            control = list(weighting = ponderacion))
+  matriz_td <- as.matrix(dtm)
+  
+  
+  # Calculamos la frecuencia de cada término en el corpus
+  freq_term <- head(sort(rowSums(matriz_td),decreasing=TRUE, n_terms))
+  
+  #matriz transpiesta de los n_terms mas frecuentes
+  matriz_nf <- t(matriz_td[sort(names(freq_term)), ])
+  
+  matriz_nf[matriz_nf>0] <- 1
+  
+  return(matriz_nf)
+  
+  }
+  
+matriz <- corpus.pro2tdm(corpus.pro, "weightTf", 150)
+dim(matriz)
+
+df_tm <- as.data.frame(matriz)
+head(df_tm,2)
+
+## Join matriz de palabras con artista y track
+cbind(df_lyrics_seleccionado[-c(3)], df_tm)
+
+nrow(df_tm)
+nrow(df_lyrics_seleccionado)
+
+filter <- !names()
+```
+
+
+```{r}
+
+# Dataframe con frecuencia de terminos (de rows)
+dtm_to_freq <- TermDocumentMatrix(corpus.pro, control = list(weighting =  "weightTf"))
+matriz_td_to_freq <- as.matrix(dtm_to_freq)
+freq_term <- sort(rowSums(matriz_td_to_freq), decreasing=TRUE )
+df_freq <- data.frame(termino = names(freq_term), frecuencia=freq_term)
+row.names(df_freq) <- NULL
+head(df_freq)
+
+
+## Graficos de terminos
+N=15
+barplot(df_freq[1:N,]$frecuencia, las = 2, names.arg = df_freq[1:N,]$termino,
+        col ="lightblue", main ="Palabras más frecuentes",
+        ylab = "Frecuencia de palabras", ylim = c(0, max(df_freq$frecuencia)+300))
+
+
+topK = head(df_freq, 100)
+
+# Visualización de los resultados
+# Nube de Etiquetas
+library("wordcloud")
+library("RColorBrewer")
+
+par(bg="grey30") # Fijamos el fondo en color gris
+
+set.seed(1234)
+wordcloud(words = topK$termino, freq = topK$frecuencia, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35, 
+          colors=brewer.pal(4, "Dark2"))
+
+
+
+```
+
+
+
 
 ```{r}
 merge(aggregation_df, df_lyrics_unicas, by.x = c("artist_name","track_name"), by.y= c("artist_name","track_name"), all.x=TRUE, all.y = FALSE)

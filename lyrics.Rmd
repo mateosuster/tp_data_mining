@@ -11,6 +11,9 @@ library(readxl)
 library(reshape)
 library(reshape2)
 library(mongolite)
+library("textcat")
+library(tm)
+
 ```
 
 
@@ -21,8 +24,6 @@ df_lyrics <- lyrics$find('{}')
 
 # write.csv(df_lyrics, "data/df_lyrics.csv")
 
-library("textcat")
-library(tm)
 
 df_lyrics <- read.csv("data/df_lyrics.csv") %>% 
   select(-X)
@@ -30,8 +31,6 @@ df_lyrics <- read.csv("data/df_lyrics.csv") %>%
 df_lyrics_unicas <- df_lyrics %>% 
   distinct(artist_name, track_name, lyrics)
 
-df_lyrics %>% 
-  distinct(artist_name, track_name)
 
 #filtro de idioma
 spa_lyrics = df_lyrics_unicas[textcat(df_lyrics_unicas$lyrics)=="spanish",]
@@ -87,7 +86,7 @@ corpus.pro <- tm_map(corpus.pro, removeNumbers)
 # my_stopwords <- append(stopwords("spanish"), 'palabra')
 my_stopwords <- append(stopwords("english"), 'yeah')
 
-# Removemos palabras vacias en español
+# Removemos palabras vacias 
 corpus.pro <- tm_map(corpus.pro, removeWords, stopwords("english"))
 corpus.pro <- tm_map(corpus.pro, removeWords, my_stopwords)
 # corpus.pro <- tm_map(corpus.pro, removeWords, stopwords("spanish"))
@@ -133,22 +132,33 @@ corpus.pro2tdm <- function(corpus.pro, ponderacion, n_terms){
   
   }
   
-
 matriz <- corpus.pro2tdm(corpus.pro, "weightTf", 150)
+dim(matriz)
 
 df_tm <- as.data.frame(matriz)
+head(df_tm,2)
 
+## Join matriz de palabras con artista y track
+cbind(df_lyrics_seleccionado[-c(3)], df_tm)
 
+nrow(df_tm)
+nrow(df_lyrics_seleccionado)
 
-# Generamos un dataframe con esta sumatoria (de rows)
-df_freq <- data.frame(termino = names(freq_term), frecuencia=freq_term)
-row.names(df_freq) <- NULL
-
-
+filter <- !names()
 ```
 
 
 ```{r}
+
+# Dataframe con frecuencia de terminos (de rows)
+dtm_to_freq <- TermDocumentMatrix(corpus.pro, control = list(weighting =  "weightTf"))
+matriz_td_to_freq <- as.matrix(dtm_to_freq)
+freq_term <- sort(rowSums(matriz_td_to_freq), decreasing=TRUE )
+df_freq <- data.frame(termino = names(freq_term), frecuencia=freq_term)
+row.names(df_freq) <- NULL
+head(df_freq)
+
+
 ## Graficos de terminos
 N=15
 barplot(df_freq[1:N,]$frecuencia, las = 2, names.arg = df_freq[1:N,]$termino,
