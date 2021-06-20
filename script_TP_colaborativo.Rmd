@@ -138,7 +138,9 @@ summary(aggregation_df[,numeric_cols[2:length(numeric_cols)]])
 df_lyrics_unicas <- df_lyrics %>% distinct(artist_name, track_name, lyrics)
 nrow(df_lyrics_unicas)
 
-merge(aggregation_df, df_lyrics_unicas, by.x = c("artist_name","track_name"), by.y= c("artist_name","track_name"), all.x=TRUE, all.y = FALSE)
+df_chart_w_lyrics <- merge(join_audio_charts, df_lyrics_unicas, by.x = c("artist_name","track_name"), by.y= c("artist_name","track_name"), all.x=TRUE, all.y = FALSE)
+
+df_chart_w_lyrics <- df_chart_w_lyrics[!is.na(df_chart_w_lyrics$lyrics),]
 
 ```
 
@@ -765,9 +767,25 @@ df_charts %>%
              duracion_chart_anio = year_max - year_in) %>% 
   arrange(Artist)
 
-
 ```
 
+#prueba igal de transformacion y test de normalidad
+```{r}
+join_audio_charts[1:5,"acousticness"]^2
+
+library(nortest)
+
+log10(df_chart_w_lyrics$acousticness)
+
+for (i in features_continuas){
+   x <- log10(df_chart_w_lyrics[,i])
+   x <- shapiro.test(x)
+   z <- x$p.value
+  print(z)
+  }
+
+
+```
 
 
 
