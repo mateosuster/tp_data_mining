@@ -114,27 +114,42 @@ corpus.pro <- tm_map(corpus.pro, stripWhitespace)
 ####################################################################
 ####### Generación de la Matríz Término-Documento del corpus #######
 ####################################################################
+corpus.pro2tdm <- function(corpus.pro, ponderacion, n_terms){
+  #matriz TD 
+  dtm <- TermDocumentMatrix(corpus.pro,
+                            control = list(weighting = ponderacion))
+  matriz_td <- as.matrix(dtm)
+  
+  
+  # Calculamos la frecuencia de cada término en el corpus
+  freq_term <- head(sort(rowSums(matriz_td),decreasing=TRUE, n_terms))
+  
+  #matriz transpiesta de los n_terms mas frecuentes
+  matriz_nf <- t(matriz_td[sort(names(freq_term)), ])
+  
+  matriz_nf[matriz_nf>0] <- 1
+  
+  return(matriz_nf)
+  
+  }
+  
 
-dtm <- TermDocumentMatrix(corpus.pro, 
-                          control = list(weighting = "weightTf"))
+matriz <- corpus.pro2tdm(corpus.pro, "weightTf", 150)
 
-matriz_td <- as.matrix(dtm)
-matriz_td
-```
+df_tm <- as.data.frame(matriz)
 
 
-```{r}
-################################################################
-####### Conteos de frecuencia de los términos del corpus #######
-################################################################
-
-# Calculamos la frecuencia de cada término en el corpus
-freq_term <- sort(rowSums(matriz_td),decreasing=TRUE)
 
 # Generamos un dataframe con esta sumatoria (de rows)
 df_freq <- data.frame(termino = names(freq_term), frecuencia=freq_term)
 row.names(df_freq) <- NULL
 
+
+```
+
+
+```{r}
+## Graficos de terminos
 N=15
 barplot(df_freq[1:N,]$frecuencia, las = 2, names.arg = df_freq[1:N,]$termino,
         col ="lightblue", main ="Palabras más frecuentes",
