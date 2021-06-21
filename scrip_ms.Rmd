@@ -7,77 +7,84 @@ output: html_notebook
 ####################################################################
 ####### Generación de la Matríz Término-Documento del corpus #######
 ####################################################################
-corpus.pro2tdm <- function(corpus.pro, ponderacion, n_terms){
+corpus.pro2tdm <- function(corpus, ponderacion, n_terms){
   #matriz TD 
-  dtm <- TermDocumentMatrix(corpus.pro,
+  dtm <- TermDocumentMatrix(corpus,
                             control = list(weighting = ponderacion))
   matriz_td <- as.matrix(dtm)
   
   
   # Calculamos la frecuencia de cada término en el corpus
-  freq_term <- head(sort(rowSums(matriz_td),decreasing=TRUE, n_terms))
+  freq_term <- head(sort(rowSums(matriz_td),decreasing=TRUE), n_terms)
   
-  #matriz transpiesta de los n_terms mas frecuentes
+  #matriz transpuesta de los n_terms mas frecuentes
   matriz_nf <- t(matriz_td[sort(names(freq_term)), ])
   
+  #pasaje a binario
   matriz_nf[matriz_nf>0] <- 1
   
   return(matriz_nf)
   
   }
   
-matriz <- corpus.pro2tdm(corpus.pro, "weightTf", 150)
+matriz <- corpus.pro2tdm(corpus = corpus.pro, ponderacion= "weightTf",n_terms= 150)
 dim(matriz)
 
 df_tm <- as.data.frame(matriz)
 head(df_tm,2)
 
 ## Join matriz de palabras con artista y track
-cbind(df_lyrics_seleccionado[-c(3)], df_tm)
+df_ly_feat <- cbind(df_lyrics_seleccionado[-c(3)], df_tm)
 
 nrow(df_tm)
 nrow(df_lyrics_seleccionado)
+nrow(df_ly_feat)
 
-filter <- !names()
+filter <- !names(df_ly_feat) %in% c("artist_name", "track_name" )
+
+df_ly_feat_ok <- df_ly_feat[, filter]
+# df_ly_feat_ok = df_ly_feat_ok[, -(which(colSums(df_ly_feat_ok) == 0))]
+
+# colSums(df_ly_feat_ok)
+
+head(df_ly_feat_ok, 3)
+head(df_ly_feat, 3)
 ```
-
-
 ```{r}
+df_ly_feat$id = 1:nrow(df_ly_feat)
 
-# Dataframe con frecuencia de terminos (de rows)
-dtm_to_freq <- TermDocumentMatrix(corpus.pro, control = list(weighting =  "weightTf"))
-matriz_td_to_freq <- as.matrix(dtm_to_freq)
-freq_term <- sort(rowSums(matriz_td_to_freq), decreasing=TRUE )
-df_freq <- data.frame(termino = names(freq_term), frecuencia=freq_term)
-row.names(df_freq) <- NULL
-head(df_freq)
+df_melt <- reshape2::melt(data = df_ly_feat[,3:ncol(df_ly_feat)], id.vars = c("id"))  %>% arrange(id)
 
+df_melt <- df_melt[df_melt$value != 0,]
 
-## Graficos de terminos
-N=15
-barplot(df_freq[1:N,]$frecuencia, las = 2, names.arg = df_freq[1:N,]$termino,
-        col ="lightblue", main ="Palabras más frecuentes",
-        ylab = "Frecuencia de palabras", ylim = c(0, max(df_freq$frecuencia)+300))
+df_melt_txt <- df_melt[df_melt$value == 1,]
+df_melt_cat <- df_melt[df_melt$value != 1,]
+
+head(df_melt_txt )
+dim(df_melt_txt )
+
+df_melt_txt$variable <- paste0("TERM_", df_melt_txt$variable)
 
 
-topK = head(df_freq, 100)
+df_melt_txt_to_ruls <- df_melt_txt[, -c(3)]
+names(df_melt_txt_to_ruls) <- c("id", "item")
 
-# Visualización de los resultados
-# Nube de Etiquetas
-library("wordcloud")
-library("RColorBrewer")
+write.table(df_melt_txt_to_ruls, file="data/transaccions_lyrics_features.txt", row.names = F)
 
-par(bg="grey30") # Fijamos el fondo en color gris
+# Reglas
+library(arules)
+# chequear nan's
+lyrics_trans <- read.transactions("data/transaccions_lyrics_features.txt", format = "single", cols = c(1,2))
 
-set.seed(1234)
-wordcloud(words = topK$termino, freq = topK$frecuencia, min.freq = 1,
-          max.words=200, random.order=FALSE, rot.per=0.35, 
-          colors=brewer.pal(4, "Dark2"))
+inspect(head(lyrics_trans, 3))
 
+summary(lyrics_trans)
+reglas <- apriori(lyrics_trans, parameter = list(support=0.1,
+                    confidence = 0.5, target  = "rules"  ))
 
-
+reglas_sub <- subset(reglas, subset = rhs %pin% "fuck")
+inspect(head(sort(reglas_sub, by = "lift", decreasing = T),5))
 ```
-
 
 
 
