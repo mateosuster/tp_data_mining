@@ -11,6 +11,7 @@ library(readxl)
 library(sqldf)
 library(lubridate)
 library(dplyr)
+library(sentimentr)
 ```
 
 # CARGA DE BASES 
@@ -141,6 +142,42 @@ nrow(df_lyrics_unicas)
 df_chart_w_lyrics <- merge(join_audio_charts, df_lyrics_unicas, by.x = c("artist_name","track_name"), by.y= c("artist_name","track_name"), all.x=TRUE, all.y = FALSE)
 
 df_chart_w_lyrics <- df_chart_w_lyrics[!is.na(df_chart_w_lyrics$lyrics),]
+
+```
+
+# contar malas palabras
+```{r}
+
+bad_words <- c()
+
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_zac_anger)))
+
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_alvarez)))
+
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_arr_bad)))
+
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_racist)))
+
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_banned)))
+
+bad_words <- unique(bad_words)
+
+
+contar_bad_words <- function(x){
+  x <- profanity(x,profanity_list = bad_words)
+  q <- sum(x$profanity_count)
+  return (q)
+  }
+df_chart_w_lyrics$cant_bad_words <- sapply(df_chart_w_lyrics[,"lyrics"], contar_bad_words)
+
+hist((df_chart_w_lyrics[df_chart_w_lyrics$explicit==TRUE & df_chart_w_lyrics$cant_bad_words >0 , "cant_bad_words"]), breaks = 20)
+
+df_chart_w_lyrics[df_chart_w_lyrics$explicit==TRUE & df_chart_w_lyrics$cant_bad_words == 0, "track_name"]
+
+df_chart_w_lyrics[, "lyrics"]
+
+
+
 
 ```
 
