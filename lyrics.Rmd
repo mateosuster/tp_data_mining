@@ -11,7 +11,7 @@ library(readxl)
 library(reshape)
 library(reshape2)
 library(mongolite)
-library("textcat")
+library(textcat)
 library(tm)
 
 ```
@@ -40,8 +40,7 @@ en_lyrics = df_lyrics_unicas[textcat(df_lyrics_unicas$lyrics) %in% c("english", 
 en_lyrics
 
 #chequeo cantidad de canciones por idioma
-nrow(en_lyrics) + nrow(spa_lyrics)
-nrow(df_lyrics_unicas)
+100*(nrow(en_lyrics) + nrow(spa_lyrics))/nrow(df_lyrics_unicas)
 
 # tabla contingencia de idiomas
 idiomas = textcat(df_lyrics_unicas$lyrics)
@@ -56,7 +55,8 @@ sort(table(idiomas), decreasing = T)
 df_lyrics_seleccionado = en_lyrics
 
 corpus = Corpus(VectorSource(enc2utf8(df_lyrics_seleccionado$lyrics)))
-# inspect(corpus[1])
+
+inspect(corpus[1])
 
 # Eliminamos espacios
 corpus.pro <- tm_map(corpus, stripWhitespace)
@@ -235,15 +235,79 @@ wordcloud(words = topK$termino, freq = topK$frecuencia, min.freq = 1,
 # Explicit
 ```{r}
 library(sentimentr)
-y="Hello. Fuck. Go"
-x <- profanity(y,profanity_list = unique(tolower(lexicon::profanity_zac_anger)))
-x
+decontracted = function(txt){
+  txt = gsub("won't", "will not", txt)
+  txt = gsub("\\'s", " is", txt)
+  txt = gsub("\\'t", " not", txt)
+  txt = gsub("\\'ll", " will", txt)
+  txt = gsub("\\'m", " am", txt)
+  txt = gsub("\\'re", " are", txt)
+  txt = gsub("\\'d", " had", txt)
+  txt = gsub("\\'ve", " have", txt)
+  txt = gsub("couldn", "could", txt)
+  txt = gsub("don", "do", txt)
+  txt = gsub("doesn", "does", txt)
+  txt = gsub("isn", "is", txt)
+  txt = gsub("mustn", "must", txt)
+  txt = gsub("shouldn", "should", txt)
+  txt = gsub("wasn", "was", txt)
+  txt = gsub("\\'cause", " because", txt)
+  txt = gsub("\\'", "g", txt)
+  return(txt)
+}
 
-z <- x[x$profanity_count==1,2]
 
-z <- z$sentence_id[1]
+#Función para limpiar. 
+text_cleaning = function(txt, stop=FALSE){
+  txt = sub('^.+?\\[.*?\\]',"", txt) #ok
+  txt = sub("More on Genius.*","", txt)
+  txt = gsub('\\[.*?\\]', '', txt)
+  txt = gsub("\\n"," ", txt)
+  txt = gsub("[()]", " ", txt)
+  txt = tolower(txt)
+  txt = decontracted(txt)
+  txt = gsub("\\W+\\b", " ", txt)
+  txt = gsub("\\d", " ", txt)
+  return(txt)
+}
 
-y <- str_split(y,". ")
-y[[1]][z]
+#función para obtener oraciones de una sola palabra. 
+one_word_setences = function(txt){
+  return(gsub("\\W+\\b", ". ", txt))
+}
+
+t = text_cleaning(en_lyrics$lyrics[1])
+
+#Genero lista de malas palabras
+bad_words <- c()
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_zac_anger)))
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_alvarez)))
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_arr_bad)))
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_racist)))
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_banned)))
+bad_words <- unique(bad_words)
+
+biglou <- read.csv("https://www.cs.cmu.edu/~biglou/resources/bad-words.txt", header=FALSE, col.names = c("words"))
+
+#Función para obtener palabras profanas de cada lyric
+get_profanities = function(txt, profanity_lst){
+  txt = text_cleaning(txt)
+  words = as.data.frame(strsplit(txt, "[ ]+"), col.names = "words")
+  profan_df = profanity(get_sentences(words), profanity_list = profanity_lst)
+  profan_words = profan_df[profan_df$profanity_count!=0,]$words
+  vector = as.vector(profan_words)
+  if (length(vector)==0){
+    return(NULL)
+  }
+  else{return(as.vector(profan_words))
+    }
+}
+
+en_lyrics$profabe_biglou <- lapply(en_lyrics$lyrics, function(x) get_profanities(x, biglou$words))
+
+en_lyrics$profabe_badwords <- lapply(en_lyrics$lyrics, function(x) get_profanities(x, bad_words))
+
+
+
 ```
 
