@@ -1,0 +1,56 @@
+
+
+1) PREGUNTAS: (AFINARLAS y CARGARLAS AL SLACK)
+
+A) A partir de la incorporación de nuevos features ¿qué reglas de asociación son robustas para determinar la posición muy alta/alta....muy baja en el ranking?  
+
+prestar atencion a los soportes e/ features categóricos y posiciones (categorizadas).
+dificilmente encontremos algo coherente...
+
+B) Géneros musicales y palabras   
+
+C) ¿Las puteadas garpan?  (profanity)
+https://www.rdocumentation.org/packages/sentimentr/versions/2.7.1/topics/profanity
+
+
+
+2) PASOS A SEGUIR
+
+JOIN NUEVO CHART y AUDIO FEATURES: 
+1. Obtener canciones unicas de charts y joinearle los datos de audio_features. 
+2. Generar PostionMIN, PositionMAX, PositionAVG, StreamsMIN, ... , Popularidad.
+
+**************
+GENERAR Feature Profanity_Count 
+
+IDENTIFICACION DE PALABRAS PROFANAS
+Para después usarlas en las reglas onda "PROF_bitch", "PORF_fuck" 
+
+**************
+TRANSFORMACION SESGADAS + DISCRETIZACION 
+
+el sesgo posiblemente se relaciona a un problema de muestreo (tenemos canciones solo del chart) 
+puede resultar inutil la transformacion (reportar)
+
+**************
+WEB SCRAPING
+- LYRICS (Python) Regex
+- Generos Musicales 
+- Identidad Sexual Artistas / Procedencia 
+
+**************
+LIMPIEZA DE LYRICS con Regex
+
+**************
+VECTORIZACION DEL CORUPS
+
+La matriz debe quedar
+Nombre // Track/ Bag of Words 
+
+**************
+DATA DE TRABAJO. 
+
+Armar un dataframe METLEADO (ver ejemplo de clase de Santiago)
+
+**************
+ARULES()

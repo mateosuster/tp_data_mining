@@ -3,6 +3,58 @@ title: "features_categoricos"
 output: html_notebook
 ---
 
+
+```{r}
+
+# Diccionario profanity español
+library(readr)
+library(tidyverse)
+
+malas_palabras_1 <- read_csv("data/malas_palabras.txt", 
+    col_names = FALSE)
+
+malas_palabras_2 <- read_csv("data/malas_palabras_translate.txt", 
+    col_names = FALSE)
+
+malas_palabras_3 <- read_csv("data/malas_palabras_wiki.txt", 
+    col_names = FALSE) %>% 
+  select(X1)
+
+malas_palabras_4 <- read_csv("data/palabras_profanas_es.txt", 
+                             col_names = FALSE)
+
+malas_palabras <- rbind(malas_palabras_1, malas_palabras_2,
+                        malas_palabras_3, malas_palabras_4)
+
+
+#Función para limpiar. 
+text_cleaning = function(txt, stop=FALSE){
+  txt = sub('^.+?\\[.*?\\]',"", txt) #ok
+  txt = sub("More on Genius.*","", txt)
+  txt = gsub('\\[.*?\\]', '', txt)
+  txt = gsub("\\n"," ", txt)
+  txt = gsub("[()]", " ", txt)
+  txt = tolower(txt)
+  # txt = decontracted(txt)
+  txt = gsub("\\W+\\b", " ", txt)
+  txt = gsub("\\d", " ", txt)
+  txt = str_trim(txt)
+  txt = stri_trans_general(txt, "Latin-ASCII")
+  return(txt)
+}
+
+
+malas_palabras$limpias = text_cleaning(malas_palabras$X1)
+malas_palabras
+```
+
+
+
+
+
+
+
+
 ```{r}
 ####################################################################
 ####### Generación de la Matríz Término-Documento del corpus #######
