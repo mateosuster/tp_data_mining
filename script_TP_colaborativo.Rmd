@@ -12,6 +12,7 @@ library(sqldf)
 library(lubridate)
 library(dplyr)
 library(sentimentr)
+library(arules)
 ```
 
 # CARGA DE BASES 
@@ -170,14 +171,26 @@ contar_bad_words <- function(x){
   }
 df_chart_w_lyrics$cant_bad_words <- sapply(df_chart_w_lyrics[,"lyrics"], contar_bad_words)
 
-hist((df_chart_w_lyrics[df_chart_w_lyrics$explicit==TRUE & df_chart_w_lyrics$cant_bad_words >0 , "cant_bad_words"]), breaks = 20)
 
-df_chart_w_lyrics[df_chart_w_lyrics$explicit==TRUE & df_chart_w_lyrics$cant_bad_words == 0, "track_name"]
+df_chart_w_lyrics_only_explicit <- df_chart_w_lyrics[df_chart_w_lyrics$explicit==TRUE & df_chart_w_lyrics$cant_bad_words > 0, ]
 
-df_chart_w_lyrics[, "lyrics"]
-
+hist(df_chart_w_lyrics_only_explicit$cant_bad_words)
 
 
+#creo vars categóricas
+df_chart_w_lyrics_only_explicit$nivel_puteada <- cut(df_chart_w_lyrics_only_explicit$cant_bad_words, breaks = c(0,10,20,50,Inf), labels=c("exp_bajo","exp_poco","exp_alto","exp_muy_alto"))
+
+df_chart_w_lyrics_only_explicit$nivel_ranking <- cut(df_chart_w_lyrics_only_explicit$position_avg, breaks = c(1,100,Inf), labels=c("chart_1a100","chart_100a200"))
+
+df_chart_w_lyrics_only_explicit$nivel_popularidad <- cut(sqrt(df_chart_w_lyrics_only_explicit$cant_bad_words), breaks = c(0,10,20,50,Inf), labels=c("pop_bajo","pop_poco","pop_alto","pop_muy alto"))
+
+transactions <- as(as.data.frame(apply(df_chart_w_lyrics_only_explicit, 2, as.factor)), "transactions")
+rules = apriori(transactions, parameter=list(target="rules", confidence=0.25, support=0.1))
+rules.sub <- subset(rules, subset = lhs %pin% "nivel_puteada" & rhs %pin% "nivel_ranking")
+inspect(head(sort(rules.sub, by = "lift", decreasing = TRUE),10))
+
+# discretizacion continuas y seleccion de variables
+# identificar palabras explít
 
 ```
 
