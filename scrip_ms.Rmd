@@ -3,6 +3,9 @@ title: "features_categoricos"
 output: html_notebook
 ---
 
+
+
+
 ```{r}
 ####################################################################
 ####### Generación de la Matríz Término-Documento del corpus #######
