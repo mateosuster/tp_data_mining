@@ -3,7 +3,7 @@ title: "lyrics"
 output: html_notebook
 ---
 
-
+# librerias
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 library(ggplot2)
 library(tidyverse)
@@ -13,17 +13,18 @@ library(reshape2)
 library(mongolite)
 library(textcat)
 library(tm)
-
+library(sentimentr)
+library(stringr)
+library(arules)
 ```
 
 
-
+# Bases de letras filtradas por idioma
 ```{r}
-lyrics = mongo(collection = "lyrics", db = "spotify_dm" )
-df_lyrics <- lyrics$find('{}')
-
+# lyrics = mongo(collection = "lyrics", db = "spotify_dm" )
+# df_lyrics <- lyrics$find('{}')
+# 
 # write.csv(df_lyrics, "data/df_lyrics.csv")
-
 
 df_lyrics <- read.csv("data/df_lyrics.csv") %>% 
   select(-X)
@@ -44,11 +45,11 @@ en_lyrics
 
 # tabla contingencia de idiomas
 idiomas = textcat(df_lyrics_unicas$lyrics)
-sort(table(idiomas), decreasing = T)
+# sort(table(idiomas), decreasing = T)
 
 ```
 
-
+# limpieza español
 ```{r}
 # comentar y descomentar según se elija un dataframe u otro
 # df_lyrics_seleccionado = df_lyrics_unicas
@@ -56,11 +57,9 @@ df_lyrics_seleccionado = en_lyrics
 
 corpus = Corpus(VectorSource(enc2utf8(df_lyrics_seleccionado$lyrics)))
 
-inspect(corpus[1])
-
 # Eliminamos espacios
 corpus.pro <- tm_map(corpus, stripWhitespace)
-# inspect(corpus.pro[1])
+inspect(corpus.pro[1])
 
 # Elimino todo lo que aparece antes del primer []
 corpus.pro <- tm_map(corpus.pro, content_transformer(
@@ -74,7 +73,6 @@ corpus.pro <- tm_map(corpus.pro, content_transformer(
 
 # Elimino todo lo que aparece luego de 'More on Genius'
 corpus.pro <- tm_map(corpus.pro, content_transformer(function(x) gsub("More on Genius.*","", x)))
-# inspect(corpus.pro[1])
 
 # Convertimos el texto a minúsculas
 corpus.pro <- tm_map(corpus.pro, content_transformer(tolower))
@@ -90,7 +88,7 @@ my_stopwords <- append(stopwords("english"), c('yeah', "aint", "get", "got"))
 corpus.pro <- tm_map(corpus.pro, removeWords, stopwords("english"))
 corpus.pro <- tm_map(corpus.pro, removeWords, my_stopwords)
 # corpus.pro <- tm_map(corpus.pro, removeWords, stopwords("spanish"))
-inspect(corpus.pro[1])
+# inspect(corpus.pro[1])
 
 
 # Removemos puntuaciones
@@ -108,12 +106,181 @@ corpus.pro <- tm_map(corpus.pro, replaceAcentos)
 corpus.pro <- tm_map(corpus.pro, stripWhitespace)
 ```
 
+# limpieza ingles
+```{r}
+#funciones
+#funcion para corregir palabras
+decontracted = function(txt){
+  txt = gsub("won't", "will not", txt)
+  txt = gsub("\\'s", " is", txt)
+  txt = gsub("\\'t", " not", txt)
+  txt = gsub("\\'ll", " will", txt)
+  txt = gsub("\\'m", " am", txt)
+  txt = gsub("\\'re", " are", txt)
+  txt = gsub("\\'d", " had", txt)
+  txt = gsub("\\'ve", " have", txt)
+  txt = gsub("couldn", "could", txt)
+  txt = gsub("don", "do", txt)
+  txt = gsub("doesn", "does", txt)
+  txt = gsub("isn", "is", txt)
+  txt = gsub("mustn", "must", txt)
+  txt = gsub("shouldn", "should", txt)
+  txt = gsub("wasn", "was", txt)
+  txt = gsub("\\'cause", " because", txt)
+  txt = gsub("\\'", "g", txt)
+  return(txt)
+}
 
+
+#Función para limpiar. 
+text_cleaning = function(txt, stop=FALSE, language){
+  
+  txt = sub('^.+?\\[.*?\\]',"", txt) #ok
+  txt = sub("More on Genius.*","", txt)
+  txt = gsub('\\[.*?\\]', '', txt)
+  txt = gsub("\\n"," ", txt)
+  txt = gsub("[()]", " ", txt)
+  txt = tolower(txt)
+  txt = decontracted(txt)
+  txt = gsub("\\W+\\b", " ", txt)
+  txt = gsub("\\d", " ", txt)
+  
+  stopwords_regex = paste(stopwords('en'), collapse = '\\b|\\b')
+  stopwords_regex = paste0('\\b', stopwords_regex, '\\b')
+  txt = stringr::str_replace_all(txt, stopwords_regex, '')
+
+  my_stopwords <- c('ooh', 'yeah', "aint", "get", "got", "ayy")
+  txt = stringr::str_replace_all(txt, my_stopwords, '')
+   
+  txt = str_trim(txt)
+  txt = gsub("\\n"," ", txt)
+  
+  if(language == "en"){
+    return(txt)
+  }else if (language == "es"){
+    txt <- function(x) {stri_trans_general(x, "Latin-ASCII")}
+      return(txt) 
+  }else{
+        return("Falta definir lenguaje")
+      }
+}
+
+#función para obtener oraciones de una sola palabra. 
+one_word_setences = function(txt){
+  return(gsub("\\W+\\b", ". ", txt))
+}
+
+#limpio las letras en ingles
+en_lyrics$lyrics = text_cleaning(en_lyrics$lyrics, language = "en")
+
+head(en_lyrics$lyrics, 1)
+
+
+```
+
+
+
+# Explicit
+## Español
+```{r}
+#Diccionario español
+malas_palabras_1 <- read_csv("data/malas_palabras.txt", 
+    col_names = FALSE)
+
+malas_palabras_2 <- read_csv("data/malas_palabras_translate.txt", 
+    col_names = FALSE)
+
+malas_palabras_3 <- read_csv("data/malas_palabras_wiki.txt", 
+    col_names = FALSE) %>% 
+  select(X1)
+
+malas_palabras_4 <- read_csv("data/palabras_profanas_es.txt", 
+                             col_names = FALSE)
+
+malas_palabras <- rbind(malas_palabras_1, malas_palabras_2,
+                        malas_palabras_3, malas_palabras_4)
+
+
+#Función para limpiar. 
+text_cleaning_esp = function(txt, stop=FALSE){
+  txt = sub('^.+?\\[.*?\\]',"", txt) #ok
+  txt = sub("More on Genius.*","", txt)
+  txt = gsub('\\[.*?\\]', '', txt)
+  txt = gsub("\\n"," ", txt)
+  txt = gsub("[()]", " ", txt)
+  txt = tolower(txt)
+  # txt = decontracted(txt)
+  txt = gsub("\\W+\\b", " ", txt)
+  txt = gsub("\\d", " ", txt)
+  txt = str_trim(txt)
+  # txt = stri_trans_general(txt, "Latin-ASCII")
+  return(txt)
+}
+
+
+malas_palabras$limpias = text_cleaning(malas_palabras$X1)
+malas_palabras
+
+malas_palabras %>% filter(startsWith(limpias, "g"))
+
+```
+
+## Inglés
+```{r}
+#Genero lista de malas palabras
+bad_words <- c()
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_zac_anger)))
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_alvarez)))
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_arr_bad)))
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_racist)))
+bad_words <- append(bad_words, unique(tolower(lexicon::profanity_banned)))
+bad_words <- unique(bad_words)
+
+biglou <- read.csv("https://www.cs.cmu.edu/~biglou/resources/bad-words.txt", header=FALSE, col.names = c("words"))
+
+
+#Función para obtener palabras profanas de cada lyric
+get_profanities = function(txt, profanity_lst){
+  # txt = text_cleaning(txt)
+  words = as.data.frame(strsplit(txt, "[ ]+"), col.names = "words")
+  profan_df = profanity(get_sentences(words), profanity_list = profanity_lst)
+  profan_words = profan_df[profan_df$profanity_count!=0,]$words
+  vector = as.vector(profan_words)
+  if (length(vector)==0){
+    return(NULL)
+  }
+  else{return(as.vector(profan_words))
+    }
+}
+
+
+
+en_lyrics$profabe_biglou <- lapply(en_lyrics$lyrics,  function(x) get_profanities(x, biglou$words))
+
+en_lyrics %>% 
+  mutate(profane_biglou = unlist(get_profanities(lyrics, biglou$words)))
+
+en_lyrics$profabe_biglou = unlist(strsplit(en_lyrics$profabe_biglou, split = " "))
+
+en_lyrics$profabe_badwords <- lapply(en_lyrics$lyrics, function(x) get_profanities(x, bad_words))
+
+str(en_lyrics)
+head(en_lyrics,1)
+
+en_lyrics$profabe_biglou[3]
+
+```
+
+
+# matriz término documento
 ```{r}
 ####################################################################
 ####### Generación de la Matríz Término-Documento del corpus #######
 ####################################################################
 corpus.pro2tdm <- function(corpus, ponderacion, n_terms){
+  #corpus
+  
+  
   #matriz TD 
   dtm <- TermDocumentMatrix(corpus,
                             control = list(weighting = ponderacion))
@@ -133,7 +300,9 @@ corpus.pro2tdm <- function(corpus, ponderacion, n_terms){
   
   }
   
-matriz <- corpus.pro2tdm(corpus = corpus.pro, ponderacion= "weightTf",n_terms= 150)
+corpus_eng = Corpus(VectorSource(enc2utf8(en_lyrics$lyrics)))
+matriz <- corpus.pro2tdm(corpus = corpus_eng, ponderacion= "weightTf",n_terms= 150)
+
 dim(matriz)
 
 df_tm <- as.data.frame(matriz)
@@ -155,11 +324,12 @@ df_ly_feat_ok <- df_ly_feat[, filter]
 
 head(df_ly_feat_ok, 3)
 head(df_ly_feat, 3)
-```
-```{r}
+
+
 df_ly_feat$id = 1:nrow(df_ly_feat)
 
-df_melt <- reshape2::melt(data = df_ly_feat[,3:ncol(df_ly_feat)], id.vars = c("id"))  %>% arrange(id)
+df_melt <- reshape2::melt(data = df_ly_feat[,3:ncol(df_ly_feat)], id.vars = c("id"))  %>%
+  arrange(id)
 
 df_melt <- df_melt[df_melt$value != 0,]
 
@@ -169,7 +339,18 @@ df_melt_cat <- df_melt[df_melt$value != 1,]
 head(df_melt_txt )
 dim(df_melt_txt )
 
-df_melt_txt$variable <- paste0("TERM_", df_melt_txt$variable)
+#denomino a los términos profanos
+df_melt_txt <- df_melt_txt %>% 
+  mutate(variable = case_when(as.character(variable) %in% biglou$words ~
+                                paste0("PROF_", as.character(variable)),
+                              T ~ paste0("TERM_", as.character(variable))
+                              )  
+         )
+
+df_melt_txt %>% filter(startsWith(variable, "PROF"))
+
+
+# df_melt_txt[df_melt_txt$variable %in% biglou$words,]
 
 
 df_melt_txt_to_ruls <- df_melt_txt[, -c(3)]
@@ -178,25 +359,24 @@ names(df_melt_txt_to_ruls) <- c("id", "item")
 write.table(df_melt_txt_to_ruls, file="data/transaccions_lyrics_features.txt", row.names = F)
 
 # Reglas
-library(arules)
 # chequear nan's
 lyrics_trans <- read.transactions("data/transaccions_lyrics_features.txt", format = "single", cols = c(1,2))
 
-inspect(head(lyrics_trans, 3))
+arules::inspect(head(lyrics_trans, 3))
 
 summary(lyrics_trans)
 reglas <- apriori(lyrics_trans, parameter = list(support=0.1,
                     confidence = 0.5, target  = "rules"  ))
 
-reglas_sub <- subset(reglas, subset = rhs %pin% "fuck")
-inspect(head(sort(reglas_sub, by = "lift", decreasing = T),5))
+reglas_sub <- subset(reglas, subset = rhs %pin% "PROF_")
+arules::inspect(head(sort(reglas_sub, by = "lift", decreasing = T),5))
+
 ```
 
 
 
-
+# frecuencia de términos
 ```{r}
-
 # Dataframe con frecuencia de terminos (de rows)
 dtm_to_freq <- TermDocumentMatrix(corpus.pro, control = list(weighting =  "weightTf"))
 matriz_td_to_freq <- as.matrix(dtm_to_freq)
@@ -231,83 +411,4 @@ wordcloud(words = topK$termino, freq = topK$frecuencia, min.freq = 1,
 
 ```
 
-
-# Explicit
-```{r}
-library(sentimentr)
-decontracted = function(txt){
-  txt = gsub("won't", "will not", txt)
-  txt = gsub("\\'s", " is", txt)
-  txt = gsub("\\'t", " not", txt)
-  txt = gsub("\\'ll", " will", txt)
-  txt = gsub("\\'m", " am", txt)
-  txt = gsub("\\'re", " are", txt)
-  txt = gsub("\\'d", " had", txt)
-  txt = gsub("\\'ve", " have", txt)
-  txt = gsub("couldn", "could", txt)
-  txt = gsub("don", "do", txt)
-  txt = gsub("doesn", "does", txt)
-  txt = gsub("isn", "is", txt)
-  txt = gsub("mustn", "must", txt)
-  txt = gsub("shouldn", "should", txt)
-  txt = gsub("wasn", "was", txt)
-  txt = gsub("\\'cause", " because", txt)
-  txt = gsub("\\'", "g", txt)
-  return(txt)
-}
-
-
-#Función para limpiar. 
-text_cleaning = function(txt, stop=FALSE){
-  txt = sub('^.+?\\[.*?\\]',"", txt) #ok
-  txt = sub("More on Genius.*","", txt)
-  txt = gsub('\\[.*?\\]', '', txt)
-  txt = gsub("\\n"," ", txt)
-  txt = gsub("[()]", " ", txt)
-  txt = tolower(txt)
-  txt = decontracted(txt)
-  txt = gsub("\\W+\\b", " ", txt)
-  txt = gsub("\\d", " ", txt)
-  return(txt)
-}
-
-#función para obtener oraciones de una sola palabra. 
-one_word_setences = function(txt){
-  return(gsub("\\W+\\b", ". ", txt))
-}
-
-t = text_cleaning(en_lyrics$lyrics[1])
-
-#Genero lista de malas palabras
-bad_words <- c()
-bad_words <- append(bad_words, unique(tolower(lexicon::profanity_zac_anger)))
-bad_words <- append(bad_words, unique(tolower(lexicon::profanity_alvarez)))
-bad_words <- append(bad_words, unique(tolower(lexicon::profanity_arr_bad)))
-bad_words <- append(bad_words, unique(tolower(lexicon::profanity_racist)))
-bad_words <- append(bad_words, unique(tolower(lexicon::profanity_banned)))
-bad_words <- unique(bad_words)
-
-biglou <- read.csv("https://www.cs.cmu.edu/~biglou/resources/bad-words.txt", header=FALSE, col.names = c("words"))
-
-#Función para obtener palabras profanas de cada lyric
-get_profanities = function(txt, profanity_lst){
-  txt = text_cleaning(txt)
-  words = as.data.frame(strsplit(txt, "[ ]+"), col.names = "words")
-  profan_df = profanity(get_sentences(words), profanity_list = profanity_lst)
-  profan_words = profan_df[profan_df$profanity_count!=0,]$words
-  vector = as.vector(profan_words)
-  if (length(vector)==0){
-    return(NULL)
-  }
-  else{return(as.vector(profan_words))
-    }
-}
-
-en_lyrics$profabe_biglou <- lapply(en_lyrics$lyrics, function(x) get_profanities(x, biglou$words))
-
-en_lyrics$profabe_badwords <- lapply(en_lyrics$lyrics, function(x) get_profanities(x, bad_words))
-
-
-
-```
 
