@@ -13,6 +13,8 @@ library(lubridate)
 library(dplyr)
 library(sentimentr)
 library(arules)
+library(stringi)
+library(stringr)
 ```
 
 # CARGA DE DATOS  
@@ -68,6 +70,7 @@ df_charts <- df_charts_raw %>%
             streams_sum = (sum(Streams, na.rm = T)/10^6 ),
             streams_min = (min(Streams)/10^6 ),
             streams_max = (max(Streams)/10^6 ),
+            streams_avg = (mean(Streams)/10^6),
             position_avg = mean(Position, na.rm = T),
             position_min = min(Position), 
             position_max = max(Position)) %>% 
@@ -75,46 +78,6 @@ df_charts <- df_charts_raw %>%
   mutate(popularidad = as.numeric(streams_sum*semanas_sum/position_avg) )
 
 ```
-
-
-
-## Agregación de todas las semanas en charts
-```{r, warning=FALSE}
-
-groupping_cols <- c("artist_name","artist_all","artist_key",
-                    "track_name","external_urls_spotify","album_name","album_release_year")
-
-numeric_col_charts <- c("Position","Streams")
-
-week_start <- c("week_start")
-
-chart_group <- join_audio_charts %>% 
-                group_by(artist_name,artist_all,artist_key,track_name,
-                         external_urls_spotify,album_name,album_release_year)
-
-
-continuas_summarized = chart_group %>% summarise_at(features_continuas, mean, na.rm = TRUE)
-categoricas_summarizes = chart_group %>% summarise_at(features_categoricas, first)
-numeric_charts_summarizes = chart_group %>% summarise(across(numeric_col_charts,
-                                                             list(min=min,max=max,avg=mean)))
-
-cant_semanas = chart_group %>% summarise_at(week_start, n_distinct)
-names(cant_semanas$week_start) <- "cant_semanas"
-
-aggregation_df <- cbind(numeric_charts_summarizes,
-                        cant_semanas[,-c(1:7)],continuas_summarized[,-c(1:7)], 
-                        categoricas_summarizes[,-c(1:7)])
-
-names(aggregation_df)[names(aggregation_df) == 'week_start'] <- "cant_semanas"
-
-cols <- names(aggregation_df)
-numeric_cols <- cols[sapply(aggregation_df,is.numeric)]
-
-summary(aggregation_df[,numeric_cols[2:length(numeric_cols)]])
-
-
-```
-
 
 
 
@@ -655,11 +618,6 @@ for (i in features_continuas){
 
 ## Filtro por idioma
 ```{r}
-# lyrics = mongo(collection = "lyrics", db = "spotify_dm" )
-# df_lyrics <- lyrics$find('{}')
-# 
-# write.csv(df_lyrics, "data/df_lyrics.csv")
-
 df_lyrics <- read.csv("data/df_lyrics.csv") %>% 
   select(-X)
 
@@ -669,19 +627,24 @@ df_lyrics_unicas <- df_lyrics %>%
 
 #filtro de idioma
 spa_lyrics = df_lyrics_unicas[textcat(df_lyrics_unicas$lyrics)=="spanish",]
-spa_lyrics
+
 
 en_lyrics = df_lyrics_unicas[textcat(df_lyrics_unicas$lyrics) %in% c("english", "scots"),]
-en_lyrics
 
+```
+
+```{r}
 #chequeo cantidad de canciones por idioma
 100*(nrow(en_lyrics) + nrow(spa_lyrics))/nrow(df_lyrics_unicas)
 
+```
+
+```{r}
 # tabla contingencia de idiomas
 idiomas = textcat(df_lyrics_unicas$lyrics)
 # sort(table(idiomas), decreasing = T)
-
 ```
+
 
 
 ### limpieza español
@@ -746,6 +709,9 @@ corpus.pro <- tm_map(corpus.pro, stripWhitespace)
 #funciones
 #funcion para corregir palabras
 decontracted = function(txt){
+  txt = gsub("ain't", "aint", txt)
+  txt = gsub("wanna", "want to", txt)
+  txt = gsub("gonna", "going to", txt)
   txt = gsub("won't", "will not", txt)
   txt = gsub("\\'s", " is", txt)
   txt = gsub("\\'t", " not", txt)
@@ -768,54 +734,84 @@ decontracted = function(txt){
 
 
 #Función para limpiar. 
-text_cleaning = function(txt, stop=FALSE, language){
-  
+text_cleaning = function(txt, language){
   txt = sub('^.+?\\[.*?\\]',"", txt) #ok
   txt = sub("More on Genius.*","", txt)
   txt = gsub('\\[.*?\\]', '', txt)
   txt = gsub("\\n"," ", txt)
   txt = gsub("[()]", " ", txt)
   txt = tolower(txt)
-  txt = decontracted(txt)
-  txt = gsub("\\W+\\b", " ", txt)
+  #txt = gsub("\\W+\\b", " ", txt)
   txt = gsub("\\d", " ", txt)
-  
-  stopwords_regex = paste(stopwords('en'), collapse = '\\b|\\b')
-  stopwords_regex = paste0('\\b', stopwords_regex, '\\b')
-  txt = stringr::str_replace_all(txt, stopwords_regex, '')
-
-  my_stopwords <- c('ooh', 'yeah', "aint", "get", "got", "ayy")
-  txt = stringr::str_replace_all(txt, my_stopwords, '')
-   
-  txt = str_trim(txt)
-  txt = gsub("\\n"," ", txt)
-  
   if(language == "en"){
-    return(txt)
+    txt = decontracted(txt)
   }else if (language == "es"){
-    txt <- function(x) {stri_trans_general(x, "Latin-ASCII")}
-      return(txt) 
-  }else{
-        return("Falta definir lenguaje")
-      }
+    txt = gsub("ñi","ni", txt)
+    txt = gsub('ñ', 'ni', txt)
+    txt = stri_trans_general(txt,"Latin-ASCII")
+  }
+  txt = gsub("\\W+\\b", " ", txt)
+  return(txt)
 }
 
-#función para obtener oraciones de una sola palabra. 
-one_word_setences = function(txt){
-  return(gsub("\\W+\\b", ". ", txt))
-}
+#   
+#   stopwords_regex = paste(stopwords('en'), collapse = '\\b|\\b')
+#   stopwords_regex = paste0('\\b', stopwords_regex, '\\b')
+#   txt = stringr::str_replace_all(txt, stopwords_regex, '')
+# 
+#   my_stopwords <- c('ooh', 'yeah', "aint", "get", "got", "ayy")
+#   txt = stringr::str_replace_all(txt, my_stopwords, '')
+#    
+#   txt = str_trim(txt)
+#   txt = gsub("\\n"," ", txt)
+#   
+#   if(language == "en"){
+#     return(txt)
+#   }else if (language == "es"){
+#     txt = stri_trans_general(txt,"Latin-ASCII")
+#       return(txt) 
+#   }else{
+#         return("Falta definir lenguaje")
+#       }
+# }
+
 
 #limpio las letras en ingles
-en_lyrics$lyrics = text_cleaning(en_lyrics$lyrics, language = "en")
+en_lyrics$lyrics_cleaning = text_cleaning(en_lyrics$lyrics, language = "en")
+spa_lyrics$lyrics_cleaning = text_cleaning(spa_lyrics$lyrics, language = "es")
 
-head(en_lyrics$lyrics, 1)
+```
 
+## STOPWORDS
+
+### Inglés
+```{r}
+library(ngram)
+wordcount(en_lyrics$lyrics_cleaning[1], sep=" ")
+
+x <- "a b a c a b b"
+
+string.summary(x, split=" ")
+
+wordcounts <- tau::textcnt(paste(en_lyrics$lyrics_cleaning, collapse = " "),
+                           split=" ", 
+                           n=1L, 
+                           method = c("string"))
+
+word_counts_df <- plyr::ldply(wordcounts, data.frame)
+colnames(word_counts_df)<-c("word", "frequency")
+
+word_counts_df <- word_counts_df[order(word_counts_df$frequency, decreasing = TRUE),]
+
+row.names(word_counts_df) <- 1:nrow(word_counts_df)
+
+#write.csv(word_counts_df, file="data/eng_word_frecuency.csv", row.names = FALSE)
 
 ```
 
 
+## DICCIONARIO DE MALAS PALABRAS
 
-## Explicit
 ### Español
 ```{r}
 #Diccionario español
@@ -836,74 +832,17 @@ malas_palabras <- rbind(malas_palabras_1, malas_palabras_2,
                         malas_palabras_3, malas_palabras_4)
 
 
-#Función para limpiar. 
-text_cleaning_esp = function(txt, stop=FALSE){
-  txt = sub('^.+?\\[.*?\\]',"", txt) #ok
-  txt = sub("More on Genius.*","", txt)
-  txt = gsub('\\[.*?\\]', '', txt)
-  txt = gsub("\\n"," ", txt)
-  txt = gsub("[()]", " ", txt)
-  txt = tolower(txt)
-  # txt = decontracted(txt)
-  txt = gsub("\\W+\\b", " ", txt)
-  txt = gsub("\\d", " ", txt)
-  txt = str_trim(txt)
-  # txt = stri_trans_general(txt, "Latin-ASCII")
-  return(txt)
-}
+#Hacer unique para eliminar las repetidas
 
-
-malas_palabras$limpias = text_cleaning(malas_palabras$X1)
-malas_palabras
-
-malas_palabras %>% filter(startsWith(limpias, "g"))
-
+malas_palabras$limpias = text_cleaning(malas_palabras$X1, language="es")
 ```
 
 ### Inglés
 ```{r}
 #Genero lista de malas palabras
-bad_words <- c()
-bad_words <- append(bad_words, unique(tolower(lexicon::profanity_zac_anger)))
-bad_words <- append(bad_words, unique(tolower(lexicon::profanity_alvarez)))
-bad_words <- append(bad_words, unique(tolower(lexicon::profanity_arr_bad)))
-bad_words <- append(bad_words, unique(tolower(lexicon::profanity_racist)))
-bad_words <- append(bad_words, unique(tolower(lexicon::profanity_banned)))
-bad_words <- unique(bad_words)
+racist_words <- unique(tolower(lexicon::profanity_racist))
 
 biglou <- read.csv("https://www.cs.cmu.edu/~biglou/resources/bad-words.txt", header=FALSE, col.names = c("words"))
-
-
-#Función para obtener palabras profanas de cada lyric
-get_profanities = function(txt, profanity_lst){
-  # txt = text_cleaning(txt)
-  words = as.data.frame(strsplit(txt, "[ ]+"), col.names = "words")
-  profan_df = profanity(get_sentences(words), profanity_list = profanity_lst)
-  profan_words = profan_df[profan_df$profanity_count!=0,]$words
-  vector = as.vector(profan_words)
-  if (length(vector)==0){
-    return(NULL)
-  }
-  else{return(as.vector(profan_words))
-    }
-}
-
-
-
-en_lyrics$profabe_biglou <- lapply(en_lyrics$lyrics,  function(x) get_profanities(x, biglou$words))
-
-en_lyrics %>% 
-  mutate(profane_biglou = unlist(get_profanities(lyrics, biglou$words)))
-
-en_lyrics$profabe_biglou = unlist(strsplit(en_lyrics$profabe_biglou, split = " "))
-
-en_lyrics$profabe_badwords <- lapply(en_lyrics$lyrics, function(x) get_profanities(x, bad_words))
-
-str(en_lyrics)
-head(en_lyrics,1)
-
-en_lyrics$profabe_biglou[3]
-
 ```
 
 
@@ -977,7 +916,9 @@ dim(df_melt_txt )
 #denomino a los términos profanos
 df_melt_txt <- df_melt_txt %>% 
   mutate(variable = case_when(as.character(variable) %in% biglou$words ~
-                                paste0("PROF_", as.character(variable)),
+                                paste0("PROFANE_", as.character(variable)),
+                              as.character(variable) %in%  racist_words ~
+                                paste0("RACIST_", as.character(variable)),
                               T ~ paste0("TERM_", as.character(variable))
                               )  
          )
