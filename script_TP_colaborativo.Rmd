@@ -61,12 +61,41 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode")
 ```
 
 
+## Imputacion de loudness
+
+
+```{r}
+fit <- lm(loudness~energy+acousticness, data=df_audio_features)
+
+modelo <- fit$coefficients
+
+df_audio_features$loudness_reg_imp <- df_audio_features$loudness
+
+X <- df_audio_features[df_audio_features$loudness>0, c('energy', "acousticness")]
+
+df_audio_features$loudness_reg_imp[df_audio_features$loudness>0] <- modelo[1]+modelo[2]*X[,1]+modelo[3]*X[,2]
+
+summary(df_audio_features[,c("loudness", "loudness_reg_imp")])
+
+summary(fit)
+
+#graficos con loudness con imputacion
+par(mfrow = c(2,1)) 
+hist(df_audio_features[,'loudness_reg_imp'], main='loudness', xlab="")
+#hist(sqrt(df_audio_features[,'loudness_reg_imp']), main= 'loudness_sqrt', xlab="")
+boxplot(df_audio_features[,'loudness_reg_imp'], horizontal = T)
+#boxplot(sqrt(df_audio_features[,'loudness_reg_imp']), horizontal = T)
+
+
+
+```
+
 # CHARTS: agregación de features
 ```{r}
 #metrica de popularidad
 df_charts <- df_charts_raw %>% 
-  group_by(Artist, Track_Name, URL) %>%
-  dplyr:: summarise(semanas_sum = n(),
+  group_by(Artist, Track_Name) %>%
+  dplyr:: summarise(semanas_sum = as.double(n()),
             streams_sum = (sum(Streams, na.rm = T)/10^6 ),
             streams_min = (min(Streams)/10^6 ),
             streams_max = (max(Streams)/10^6 ),
@@ -92,8 +121,7 @@ join_audio_charts <- df_audio_features %>%
   right_join( df_charts,# %>%
                by = c(
                  "track_name" = "Track_Name", 
-                      "artist_key" ="Artist", 
-                      "external_urls_spotify" = "URL"))
+                      "artist_key" ="Artist"))
 
 #HAY CHARTS QUE NO TIENEN FEATURES. HAY QUE TENERLO EN CUENTA PARA EL ANÁLISIS
 library(mice)
@@ -194,24 +222,24 @@ logaritmo_ajustado = function(x,delta){
     return(log(x, base = 10))
   }
 }
-
 delta <- 10^(-6)
 
 df_sesgadas_log_adjust <- data.frame(apply(df_audio_features[,variables_sesgo], MARGIN = c(1,2), 
                                            function(x) logaritmo_ajustado(x,delta)))
 
-ggplot(melt(df_sesgadas_log_adjust), aes(value))+
+ggplot(reshape::melt(df_sesgadas), aes(value))+
+  geom_histogram()+
+  facet_wrap(~variable)
+
+ggplot(reshape::melt(df_sesgadas_log_adjust), aes(value))+
   geom_histogram()+
   facet_wrap(~variable)
 
 
 ####################################################
 # names(df_sesgadas_log_adjust) <- paste(names(df_sesgadas), "_log", sep="")
-names(df_sesgadas_log_adjust) <- names(df_sesgadas)
-
-df_datos <- cbind(df_sesgadas, df_sesgadas_log_adjust)
-
-
+# names(df_sesgadas_log_adjust) <- names(df_sesgadas)
+# df_datos <- cbind(df_sesgadas, df_sesgadas_log_adjust)
 
 a <- df_sesgadas
 b <- df_sesgadas_log_adjust
@@ -220,69 +248,29 @@ merged <- cbind(a,b)
 
 merged <- merged[, order(names(merged))]
 
-round(sort(apply(merged, MARGIN = 2, function(x){ (3* (mean(x,na.rm = T)-median(x, na.rm = T)))/sd(x, na.rm = T)})),2)
-
-```
-
-```{r}
-#join entre variables transformadas y resto features
-x <- df_audio_features %>% 
-  select("artist_name","artist_all","artist_key",
-         "track_name", "external_urls_spotify", "album_name", "album_release_year",
-         all_of(features_continuas), all_of(features_categoricas)) %>%
-  select(!variables_sesgo) 
-
-join_audio_charts <- cbind(x, df_sesgadas_log_adjust) %>% 
-  right_join( df_charts %>%
-               select( "Track_Name", "Artist", 
-                       "URL","Position", "Streams", "week_start", "week_end"),
-               by = c("track_name" = "Track_Name", 
-                      "artist_key" ="Artist", 
-                      "external_urls_spotify" = "URL"))
-```
-
-
-```{r}
-
-variables_plot <- unlist(strsplit("duration_ms", ","))
-variables_plot <- append(variables_plot, paste(variables_plot,"_log", sep=""))
-variables_plot <- variables_plot[order(variables_plot)]
-plotear <- merged[,variables_plot]
-
-par(mfrow = c(1,2))
-for (col in names(plotear)){
-  hist(plotear[,col], breaks="FD", main=col, xlab="")
-}
+round((
+  apply(
+  merged, MARGIN = 2, function(x){ (3* (mean(x,na.rm = T)-median(x, na.rm = T)))/sd(x, na.rm = T)}
+        )
+          ),2)
 
 ```
 
 
-
-
-
 ```{r}
+#histogramas de vbles transformadas con logaritmo
+# transformacion <- c('instrumentalness','loudness','liveness','speechiness', 'duration_ms')
 
-transformacion <- c('instrumentalness','loudness','liveness','speechiness', 'duration_ms')
-
-logaritmo_ajustado = function(x,delta){
-  if (x<=0.0){
-    return(log(0.00+delta, base = 10))
-  }else{
-    return(log(x, base = 10))
-  }
-}
-
-delta <- 10^(-6)
-
-par(mfrow=c(2,5))
-for (feature in transformacion){
+par(mfrow=c(3,5))
+for (feature in variables_sesgo){
   hist(df_audio_features[,feature], main=feature)
 }
 
-for (feature in transformacion){
+for (feature in variables_sesgo){
   hist(unlist(lapply(df_audio_features[,feature], function(x) logaritmo_ajustado(x,delta))), main=paste(feature,"log", sep="_"))
 }
 ```
+### Transformacion inversa raiz cuadrada
 
 ```{r}
 
@@ -293,145 +281,172 @@ inv_sqrt_ajustada = function(x, delta){
     return(1/sqrt(x))
   }
 }
-
-
 delta <- 10^(-6)
 
-par(mfrow=c(2,5))
-for (feature in transformacion){
+par(mfrow=c(3,5))
+for (feature in variables_sesgo){
   hist(df_audio_features[,feature], main=feature)
 }
-for (feature in transformacion){
+
+for (feature in variables_sesgo){
   hist(unlist(lapply(df_audio_features[,feature], function(x) inv_sqrt_ajustada(x,delta))), main=paste(feature,"inv_sqt", sep="_"))
 }
 
-
+df_sesgadas_inv_sqrt <- data.frame(apply(df_audio_features[,variables_sesgo], MARGIN = c(1,2), 
+                                           function(x) inv_sqrt_ajustada(x,delta)))
 
 ```
 
 
 ```{r}
+#nuevos sesgos con inversa raiz cuadrada
+a <- df_sesgadas
+b <- df_sesgadas_inv_sqrt
+names(b) <- paste(names(df_sesgadas), "_invsqrt", sep="")
+merged <- cbind(a,b)
+
+merged <- merged[, order(names(merged))]
+
+round((
+  apply(
+  merged, MARGIN = 2, function(x){ (3* (mean(x,na.rm = T)-median(x, na.rm = T)))/sd(x, na.rm = T)}
+        )
+          ),2)
 
 
-par(mfrow=c(2,5))
-for (feature in transformacion){
-  hist(df_audio_features[,feature], main=feature)
+b <- df_sesgadas_inv_sqrt[,c("cant_markets", "energy", "instrumentalness", "liveness" , "speechiness")]
+names(b) <- paste(names(b), "_invsqrt", sep="")
+ggplot(data=reshape::melt(b), aes(value))+
+  geom_histogram(bins = 5)+facet_wrap(~variable, scales = "free")
+
+```
+
+
+
+
+
+
+## Discretización
+
+```{r}
+
+scale_vble <- function(x){
+  (x - mean(x, na.rm = T))/sd(x, na.rm = T)
 }
-for (feature in transformacion){
-  hist(sqrt(df_audio_features[,feature]), main=paste(feature,"sqrt", sep="_"))
-}
 
+minmax
+
+
+#join entre variables transformadas y resto features
+audio_sin_sesgo <- df_audio_features %>% 
+  select("artist_name", "artist_key",
+         "track_name",
+         all_of(features_continuas), all_of(features_categoricas)) %>%
+  select(!variables_sesgo) 
+
+
+#falta transformar df_charts !!!
+
+join_audio_charts <- cbind(audio_sin_sesgo, df_sesgadas_log_adjust[,c("acousticness", "duration_ms")],
+                           df_sesgadas_inv_sqrt[,c("instrumentalness", "cant_markets",
+                                                   "energy", "liveness" , "speechiness")]) %>% 
+  right_join( df_charts %>%
+               select( "Track_Name", "Artist", 
+                       "streams_avg", "position_avg",
+                       "semanas_sum", "popularidad"),
+               by = c("track_name" = "Track_Name", 
+                      "artist_key" ="Artist")) %>% 
+  select(-c("artist_key", "key_name", "explicit", "mode_name" ,"key_mode")) %>% 
+  group_by(artist_name, track_name) %>%
+  summarise_all( function(x) mean(x, na.rm= T))%>%
+  ungroup() %>% 
+  filter(!is.na(artist_name)) %>% 
+  group_by(artist_name, track_name)# %>%
+  # mutate_all(function(x) scales::rescale(x, to=c(0,1)))
+  # mutate_all(function(x)  (x-min(x, na.rm = T)) / (max(x, na.rm = T)-min(x, na.rm = T)) ) 
+  
+
+
+```
+
+```{r}
+join_audio_charts %>% 
+  gather(key = variable, value = valor, 3:ncol(.)) %>% 
+  ggplot(aes(valor))+
+  geom_histogram()+
+  facet_wrap(~variable, scales = "free")
 ```
 
 
 
-```{r}
-
-par(mfrow = c(2,1)) 
-hist(df_audio_features[,'loudness_reg_imp'], main='loudness', xlab="")
-#hist(sqrt(df_audio_features[,'loudness_reg_imp']), main= 'loudness_sqrt', xlab="")
-boxplot(df_audio_features[,'loudness_reg_imp'], horizontal = T)
-#boxplot(sqrt(df_audio_features[,'loudness_reg_imp']), horizontal = T)
-
-
-
-
-
-```
 
 ```{r}
-fit <- lm(loudness~energy+acousticness, data=df_audio_features)
+join_audio_charts %>% 
+  mutate_all(scale)
+  
 
-modelo <- fit$coefficients
-
-df_audio_features$loudness_reg_imp <- df_audio_features$loudness
-
-X <- df_audio_features[df_audio_features$loudness>0, c('energy', "acousticness")]
-
-df_audio_features$loudness_reg_imp[df_audio_features$loudness>0] <- modelo[1]+modelo[2]*X[,1]+modelo[3]*X[,2]
-
-summary(df_audio_features[,c("loudness", "loudness_reg_imp")])
-
-summary(fit)
-```
+apply(X = x[,-c(1,2)], MARGIN = 2,  FUN =  function(x){ cut(x, quantile(x, robs = seq(0, 1, 0.25)),
+                                                            label = c("Muy Alta", "Alta", "Media", "Baja")  )}  )
 
 
+join_audio_charts %>% 
+  ungroup() %>% 
+  group_by(artist_name, track_name) %>% 
+  mutate_all( function(x){ cut(x, quantile(x, probs = seq(0, 1, 0.25) ), labels = c("Muy Alta","Alta" ,"Media", "Baja") ) } )
 
-`instrumentalness` tiene mucho sesgo la variable. Se va a recurrir a una logaritmización de la variable, previa transformación del dominio, haciendo que los valores que son 0, sean en realidad 0.0000001  
+###############
 
-```{r}
-logaritmo_ajustado = function(x,delta){
-  if (x==0.0){
-    return(log(x+delta, base = 10))
-  }else{
-    return(log(x, base = 10))
+cut(join_audio_charts$danceability, quantile(join_audio_charts$danceability, 
+                                             probs = seq(0, 1, 0.25) ),
+    labels = c("Muy Alta","Alta" ,"Media", "Baja") )  
+
+# Discretizaciones basadas en Quantile
+# join_audio_charts$cat_danc = 
+cut(join_audio_charts$danceability, breaks = c(1, 25, 100,200),#quantile(df_feat$position), 
+    labels = c("Muy Alta","Media", "Baja")) #c("Muy Alta", "Alta","Media", "Baja"))
+
+
+df_cat <-  join_audio_charts[, c("artist_name","track_name")]
+cols <- names(join_audio_charts)[!names(join_audio_charts) %in% c("artist_name","track_name")]
+df_num = join_audio_charts[,cols]
+
+
+
+
+library(R.oo)
+intToChar(65:(65+length(breaks)))
+intToUtf8(65:78,multiple=TRUE)
+
+for(i in seq_along(df_num) ){
+  
+  breaks =unique(quantile(df_num[[i]], probs = seq(0, 1, 0.25)))
+  
+  # label = intToChar(65:(65+length(breaks)))
+  
+  x <-   cut(df_num[[i]], breaks=breaks,
+            # labels = label )
+            labels  = c("Muy Alta","Alta" ,"Media", "Baja") )
+
+  df_cat <-  cbind(df_cat, x ) 
   }
+
+output <-list()  
+
+####################
+apply(df_num, 2, function(x){ cut(x, quantile(x, probs = seq(0, 1, 0.25) ),
+                             # include.lowest=TRUE,
+                labels = c("Muy Alta","Alta" ,"Media", "Baja") ) } )
+
+
+for (i in seq_along(y)) {            
+  output[[i]] <- cut(y[[i]], quantile(y[[i]] ),
+            labels = c("Muy Alta","Alta" ,"Media", "Baja") )
 }
-
-delta <- 10^(-6)
-
-df_audio_features$instrumentalness_logadjust <- unlist(lapply(df_audio_features$instrumentalness, function(x) logaritmo_ajustado(x,delta)))
-
-par(mfrow =c(2,2))
-hist(df_audio_features$instrumentalness, main="insrumentalness", xlab="")
-hist(unlist(lapply(df_audio_features$instrumentalness, function(x) logaritmo_ajustado(x,delta))), main='instrumentalness_logadjust', ylim = c(0,130500), xlab = "")
-boxplot(df_audio_features$instrumentalness, main="", horizontal = T)
-boxplot(unlist(lapply(df_audio_features$instrumentalness, function(x) logaritmo_ajustado(x,delta))), main="", horizontal=T)
-# hist(log(1/sqrt(df_audio_features$instrumentalness+0.00001)),main='log(sqrt(x+))', ylim=c(0,130500), xlab = "")
+output
 
 ```
 
-¿Es útil esta transformación? 
 
-```{r}
-
-delta <- 10^(-6)
-
-df_audio_features$instrumentalness_logadjust <- unlist(lapply(df_audio_features$instrumentalness, function(x) logaritmo_ajustado(x,delta)))
-
-df_chart_tojoin <- df_charts[,c("Track_Name", "Artist", "URL")]
-df_chart_tojoin$isinchart <- 1
-df_audio_features_tojoin <- df_audio_features[, c("track_name","artist_key","external_urls_spotify","instrumentalness", "instrumentalness_logadjust")]
-
-join_histogram <- df_audio_features_tojoin %>% 
-  dplyr::select("track_name","artist_key","external_urls_spotify","instrumentalness", "instrumentalness_logadjust") %>% 
-  left_join( df_chart_tojoin %>%
-               select("Track_Name", "Artist", "URL","isinchart"),
-               by = c(
-                 "track_name" = "Track_Name", 
-                      "artist_key" ="Artist", 
-                      "external_urls_spotify" = "URL"))
-
-
-join_histogram$isinchart[is.na(join_histogram$isinchart)] <- 0
-
-join_histogram$isinchart <- factor(join_histogram$isinchart)
-
-
-h11 <- hist(join_histogram[join_histogram$isinchart==1,'instrumentalness'])
-h11$density <-  h11$counts/sum(h11$counts)*100
-
-h12 <- hist(join_histogram[join_histogram$isinchart==0,'instrumentalness'])
-h12$density <-  h12$counts/sum(h12$counts)*100
-
-h21 <- hist(join_histogram[join_histogram$isinchart==1,'instrumentalness_logadjust'])
-h21$density <-  h21$counts/sum(h21$counts)*100
-
-h22 <- hist(join_histogram[join_histogram$isinchart==0,'instrumentalness_logadjust'])
-h22$density <-  h22$counts/sum(h22$counts)*100
-
-#png("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/TP/graficos/instrumentalness.png",
-#    width = 800, height = 800)
-par(mfrow = c(3,2))
-plot(h11, main='instrumentalness \nchart', xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
-plot(h12, main='instrumentalness \nfuera chart', xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
-plot(h21, main ="instrumentalness_log \nchart", xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
-plot(h22, main ="instrumentalness_log \nfuera chart", xlab="", ylab="Porcentage", freq=FALSE, col='grey', ylim = c(0,100))
-boxplot(join_histogram[join_histogram$isinchart==1,'instrumentalness_logadjust'], main="instrumentalness_log chart", horizontal = T)
-boxplot(join_histogram[join_histogram$isinchart==0,'instrumentalness_logadjust'], main="instrumentalness_log fuera chart", horizontal = T)
-#dev.off()
-
-```
 
 
 
@@ -1027,9 +1042,7 @@ inspect(head(sort(rules.sub, by = "lift", decreasing = TRUE),10))
 
 
 #funcion para escalar variable
-scale_vble <- function(x){
-  (x - mean(x, na.rm = T))/sd(x, na.rm = T)
-}
+
 
 ```
 ```{r}
