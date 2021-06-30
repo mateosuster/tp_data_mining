@@ -15,6 +15,8 @@ library(sentimentr)
 library(arules)
 library(stringi)
 library(stringr)
+library(tm)
+library(tau)
 ```
 
 # CARGA DE DATOS  
@@ -78,8 +80,6 @@ df_charts <- df_charts_raw %>%
   mutate(popularidad = as.numeric(streams_sum*semanas_sum/position_avg) )
 
 ```
-
-
 
 # RIGTH JOIN `audio_features` Y `charts`
 ```{r}
@@ -618,6 +618,8 @@ for (i in features_continuas){
 
 ## Filtro por idioma
 ```{r}
+library(textcat)
+
 df_lyrics <- read.csv("data/df_lyrics.csv") %>% 
   select(-X)
 
@@ -642,66 +644,7 @@ en_lyrics = df_lyrics_unicas[textcat(df_lyrics_unicas$lyrics) %in% c("english", 
 ```{r}
 # tabla contingencia de idiomas
 idiomas = textcat(df_lyrics_unicas$lyrics)
-# sort(table(idiomas), decreasing = T)
-```
-
-
-
-### limpieza español
-```{r}
-# comentar y descomentar según se elija un dataframe u otro
-# df_lyrics_seleccionado = df_lyrics_unicas
-df_lyrics_seleccionado = en_lyrics
-
-corpus = Corpus(VectorSource(enc2utf8(df_lyrics_seleccionado$lyrics)))
-
-# Eliminamos espacios
-corpus.pro <- tm_map(corpus, stripWhitespace)
-inspect(corpus.pro[1])
-
-# Elimino todo lo que aparece antes del primer []
-corpus.pro <- tm_map(corpus.pro, content_transformer(
-  function(x) sub('^.+?\\[.*?\\]',"", x)))
-# inspect(corpus.pro[1])
-
-# Elimino las aclaraciones en las canciones, por ejemplo:
-# [Verso 1: Luis Fonsi & Daddy Yankee]
-corpus.pro <- tm_map(corpus.pro, content_transformer(
-  function(x) gsub('\\[.*?\\]', '', x)))
-
-# Elimino todo lo que aparece luego de 'More on Genius'
-corpus.pro <- tm_map(corpus.pro, content_transformer(function(x) gsub("More on Genius.*","", x)))
-
-# Convertimos el texto a minúsculas
-corpus.pro <- tm_map(corpus.pro, content_transformer(tolower))
-
-# removemos números
-corpus.pro <- tm_map(corpus.pro, removeNumbers)
-
-# Podemos agregar palabras a las stopwords
-# my_stopwords <- append(stopwords("spanish"), 'palabra')
-my_stopwords <- append(stopwords("english"), c('yeah', "aint", "get", "got"))
-
-# Removemos palabras vacias 
-corpus.pro <- tm_map(corpus.pro, removeWords, stopwords("english"))
-corpus.pro <- tm_map(corpus.pro, removeWords, my_stopwords)
-# corpus.pro <- tm_map(corpus.pro, removeWords, stopwords("spanish"))
-# inspect(corpus.pro[1])
-
-
-# Removemos puntuaciones
-corpus.pro <- tm_map(corpus.pro, removePunctuation)
-
-# Removemos todo lo que no es alfanumérico
-corpus.pro <- tm_map(corpus.pro, content_transformer(function(x) str_replace_all(x, "[[:punct:]]", " ")))
-
-# En tm_map podemos utilizar funciones prop
-library(stringi)
-replaceAcentos <- function(x) {stri_trans_general(x, "Latin-ASCII")}
-corpus.pro <- tm_map(corpus.pro, replaceAcentos)
-
-# Eliminamos espacios que se van generando con los reemplazos
-corpus.pro <- tm_map(corpus.pro, stripWhitespace)
+sort(table(idiomas), decreasing = T)
 ```
 
 ### limpieza ingles
@@ -713,6 +656,8 @@ decontracted = function(txt){
   txt = gsub("wanna", "want to", txt)
   txt = gsub("gonna", "going to", txt)
   txt = gsub("won't", "will not", txt)
+  txt = gsub("c'mon", "come on", txt)
+  txt = gsub("let's", "let us", txt)
   txt = gsub("\\'s", " is", txt)
   txt = gsub("\\'t", " not", txt)
   txt = gsub("\\'ll", " will", txt)
@@ -727,8 +672,14 @@ decontracted = function(txt){
   txt = gsub("mustn", "must", txt)
   txt = gsub("shouldn", "should", txt)
   txt = gsub("wasn", "was", txt)
+  txt = gsub("\\'n", " and ", txt)
+  txt = gsub("\\^'n'", " and ", txt)
+  txt = gsub("\\^n'", " and ", txt)
   txt = gsub("\\'cause", " because", txt)
-  txt = gsub("\\'", "g", txt)
+  txt = gsub("\\b'u\\b", " you", txt)
+  txt = gsub("\\bu'\\b", " you ", txt)
+  txt = gsub("\\bu\\b", "you", txt)
+  txt = gsub("\\in'", "ing", txt)
   return(txt)
 }
 
@@ -754,31 +705,13 @@ text_cleaning = function(txt, language){
   return(txt)
 }
 
-#   
-#   stopwords_regex = paste(stopwords('en'), collapse = '\\b|\\b')
-#   stopwords_regex = paste0('\\b', stopwords_regex, '\\b')
-#   txt = stringr::str_replace_all(txt, stopwords_regex, '')
-# 
-#   my_stopwords <- c('ooh', 'yeah', "aint", "get", "got", "ayy")
-#   txt = stringr::str_replace_all(txt, my_stopwords, '')
-#    
-#   txt = str_trim(txt)
-#   txt = gsub("\\n"," ", txt)
-#   
-#   if(language == "en"){
-#     return(txt)
-#   }else if (language == "es"){
-#     txt = stri_trans_general(txt,"Latin-ASCII")
-#       return(txt) 
-#   }else{
-#         return("Falta definir lenguaje")
-#       }
-# }
-
-
 #limpio las letras en ingles
 en_lyrics$lyrics_cleaning = text_cleaning(en_lyrics$lyrics, language = "en")
 spa_lyrics$lyrics_cleaning = text_cleaning(spa_lyrics$lyrics, language = "es")
+
+
+write.csv(en_lyrics, "data/en_lyrics.csv", row.names = FALSE)
+
 
 ```
 
@@ -786,28 +719,62 @@ spa_lyrics$lyrics_cleaning = text_cleaning(spa_lyrics$lyrics, language = "es")
 
 ### Inglés
 ```{r}
-library(ngram)
-wordcount(en_lyrics$lyrics_cleaning[1], sep=" ")
 
-x <- "a b a c a b b"
-
-string.summary(x, split=" ")
-
-wordcounts <- tau::textcnt(paste(en_lyrics$lyrics_cleaning, collapse = " "),
-                           split=" ", 
-                           n=1L, 
-                           method = c("string"))
-
-word_counts_df <- plyr::ldply(wordcounts, data.frame)
-colnames(word_counts_df)<-c("word", "frequency")
-
-word_counts_df <- word_counts_df[order(word_counts_df$frequency, decreasing = TRUE),]
-
-row.names(word_counts_df) <- 1:nrow(word_counts_df)
-
-#write.csv(word_counts_df, file="data/eng_word_frecuency.csv", row.names = FALSE)
+#El word_count_df se realiza con Python (ejecutar en_lyrics_word_coun)
+word_counts_df <- read.csv("data/en_lyrics_word_count.csv")
 
 ```
+
+```{r}
+x <- 1:nrow(word_counts_df)
+f <- word_counts_df$counts
+plot(x,f, type="l",
+          log = 'xy',
+          col="blue",
+          lwd=3,
+          ylab = "Frecuencia Absoluta",
+          xlab = "",
+          main="Frecuencia de Palabras - Ley de Zipf")
+```
+
+```{r}
+library(stopwords)
+
+threshold <- 1000
+
+x <- as.vector(word_counts_df[word_counts_df$counts>threshold,]$word)
+not_remove_list = c("bitch","fuck","love","baby","nigga","feel", "girl", "shit")
+
+top_stopwords <- setdiff(x, not_remove_list)
+
+smart_stopwords <- stopwords("en", source = "smart")
+my_eng_stopwords <- unique(append(smart_stopwords, top_stopwords))
+
+```
+
+
+
+### Español
+
+```{r}
+my_spa_stopwords <- unique(text_cleaning(stopwords("es", source = "stopwords-iso"), language = "es"))
+```
+
+
+###Borro Stopwords
+```{r}
+del_stopwords = function(txt, stopword_list){
+  remove_regex = paste("\\b(", paste(my_eng_stopwords, collapse = "|"),")\\W", sep="")
+  txt = gsub(remove_regex, " ", txt)
+  txt = gsub("\\W+\\b", " ", txt)
+  return(txt)
+}
+
+spa_lyrics$sin_stopwords <- del_stopwords(spa_lyrics$lyrics_cleaning, my_spa_stopwords)
+en_lyrics$sin_stopwords <- del_stopwords(en_lyrics$lyrics_cleaning, my_eng_stopwords)
+
+```
+
 
 
 ## DICCIONARIO DE MALAS PALABRAS
