@@ -92,6 +92,8 @@ boxplot(df_audio_features[,'loudness_reg_imp'], horizontal = T)
 
 ```
 
+
+
 # CHARTS: agregación de features
 ```{r}
 #metrica de popularidad
@@ -108,7 +110,14 @@ df_charts <- df_charts_raw %>%
   ungroup() %>% 
   mutate(popularidad = as.numeric(streams_sum*semanas_sum/position_avg) )
 
+library(reshape2)
+ggplot(melt(df_charts[,3:ncol(df_charts)]), aes(value))+
+  geom_histogram()+
+  facet_wrap(~variable , scales = "free")
+
 ```
+
+
 
 # RIGTH JOIN `audio_features` Y `charts`
 ```{r}
@@ -322,8 +331,53 @@ ggplot(data=reshape::melt(b), aes(value))+
 ```
 
 
+## Sesgo DF charts
+```{r}
+df_ses_chart <- df_charts %>% select( "Track_Name", "Artist", 
+                       "streams_avg", "position_avg",
+                       "semanas_sum", "popularidad")
 
 
+
+df_ses_chart_log <- data.frame(apply(df_ses_chart[,3:6], MARGIN = c(1,2), 
+                                           function(x) logaritmo_ajustado(x,delta)))
+
+cat("originales\n")
+#sesgos d las variables                                                   
+(apply(df_ses_chart[,3:6], MARGIN = 2, function(x){ (3* (mean(x,na.rm = T)-median(x, na.rm = T)))/sd(x, na.rm = T)} ))
+
+cat("\ntransformadas\n")
+(apply(df_ses_chart_log, MARGIN = 2, function(x){ (3* (mean(x,na.rm = T)-median(x, na.rm = T)))/sd(x, na.rm = T)} ))
+
+
+ggplot(reshape2::melt(df_ses_chart[,3:6]), aes(value))+
+  geom_histogram()+
+  facet_wrap(~variable, scales = "free")+
+  labs(title = "Histogramas originales")
+
+ggplot(reshape::melt(df_ses_chart_log), aes(value))+
+  geom_histogram()+
+  facet_wrap(~variable, scales = "free")+
+  labs(title = "Histogramas transformados")
+
+
+```
+
+
+```{r}
+df_ses_chart_inv_sqrt <- data.frame(apply(df_ses_chart[,3:6], MARGIN = c(1,2), 
+                                           function(x) inv_sqrt_ajustada(x,delta)))
+
+cat("\ntransformadas\n")
+(apply(df_ses_chart_inv_sqrt, MARGIN = 2, function(x){ (3* (mean(x,na.rm = T)-median(x, na.rm = T)))/sd(x, na.rm = T)} ))
+
+
+charts_sin_sesgo <- cbind(df_ses_chart[,-c(3,5)], 
+     "semanas_sum" =df_ses_chart_log[,c("semanas_sum")],
+     "streams_avg" = df_ses_chart_inv_sqrt[,c("streams_avg")])
+
+
+```
 
 
 ## Discretización
@@ -334,7 +388,6 @@ scale_vble <- function(x){
   (x - mean(x, na.rm = T))/sd(x, na.rm = T)
 }
 
-minmax
 
 
 #join entre variables transformadas y resto features
@@ -350,7 +403,7 @@ audio_sin_sesgo <- df_audio_features %>%
 join_audio_charts <- cbind(audio_sin_sesgo, df_sesgadas_log_adjust[,c("acousticness", "duration_ms")],
                            df_sesgadas_inv_sqrt[,c("instrumentalness", "cant_markets",
                                                    "energy", "liveness" , "speechiness")]) %>% 
-  right_join( df_charts %>%
+  right_join( charts_sin_sesgo %>%
                select( "Track_Name", "Artist", 
                        "streams_avg", "position_avg",
                        "semanas_sum", "popularidad"),
@@ -396,13 +449,9 @@ join_audio_charts %>%
 
 ###############
 
-cut(join_audio_charts$danceability, quantile(join_audio_charts$danceability, 
-                                             probs = seq(0, 1, 0.25) ),
-    labels = c("Muy Alta","Alta" ,"Media", "Baja") )  
 
 # Discretizaciones basadas en Quantile
-# join_audio_charts$cat_danc = 
-cut(join_audio_charts$danceability, breaks = c(1, 25, 100,200),#quantile(df_feat$position), 
+cut(join_audio_charts$position_avg, breaks = c(1, 25, 100,200),#quantile(df_feat$position), 
     labels = c("Muy Alta","Media", "Baja")) #c("Muy Alta", "Alta","Media", "Baja"))
 
 
@@ -411,38 +460,28 @@ cols <- names(join_audio_charts)[!names(join_audio_charts) %in% c("artist_name",
 df_num = join_audio_charts[,cols]
 
 
-
-
 library(R.oo)
-intToChar(65:(65+length(breaks)))
-intToUtf8(65:78,multiple=TRUE)
+# intToChar(65:(65+length(breaks)))
+# intToUtf8(65:78,multiple=TRUE)
 
 for(i in seq_along(df_num) ){
-  
+
   breaks =unique(quantile(df_num[[i]], probs = seq(0, 1, 0.25)))
-  
+
   # label = intToChar(65:(65+length(breaks)))
-  
+
   x <-   cut(df_num[[i]], breaks=breaks,
             # labels = label )
             labels  = c("Muy Alta","Alta" ,"Media", "Baja") )
 
-  df_cat <-  cbind(df_cat, x ) 
+  df_cat <-  cbind(df_cat, x )
   }
 
-output <-list()  
 
 ####################
 apply(df_num, 2, function(x){ cut(x, quantile(x, probs = seq(0, 1, 0.25) ),
                              # include.lowest=TRUE,
                 labels = c("Muy Alta","Alta" ,"Media", "Baja") ) } )
-
-
-for (i in seq_along(y)) {            
-  output[[i]] <- cut(y[[i]], quantile(y[[i]] ),
-            labels = c("Muy Alta","Alta" ,"Media", "Baja") )
-}
-output
 
 ```
 
