@@ -693,7 +693,6 @@ for (i in features_continuas){
 ```
 
 
-
 # LYRICS
 
 
@@ -772,8 +771,8 @@ text_cleaning = function(txt, language){
   txt = gsub('\\[.*?\\]', '', txt)
   txt = gsub("\\n"," ", txt)
   txt = gsub("[()]", " ", txt)
+  txt = gsub("([a-z]+)([A-Z]+)", "\\1 \\2", txt)
   txt = tolower(txt)
-  #txt = gsub("\\W+\\b", " ", txt)
   txt = gsub("\\d", " ", txt)
   if(language == "en"){
     txt = decontracted(txt)
@@ -791,7 +790,7 @@ en_lyrics$lyrics_cleaning = text_cleaning(en_lyrics$lyrics, language = "en")
 spa_lyrics$lyrics_cleaning = text_cleaning(spa_lyrics$lyrics, language = "es")
 
 
-write.csv(en_lyrics, "data/en_lyrics.csv", row.names = FALSE)
+#write.csv(en_lyrics, "data/en_lyrics.csv", row.names = FALSE)
 
 
 ```
@@ -824,6 +823,7 @@ library(stopwords)
 threshold <- 1000
 
 x <- as.vector(word_counts_df[word_counts_df$counts>threshold,]$word)
+
 not_remove_list = c("bitch","fuck","love","baby","nigga","feel", "girl", "shit")
 
 top_stopwords <- setdiff(x, not_remove_list)
@@ -838,14 +838,14 @@ my_eng_stopwords <- unique(append(smart_stopwords, top_stopwords))
 ### Español
 
 ```{r}
-my_spa_stopwords <- unique(text_cleaning(stopwords("es", source = "stopwords-iso"), language = "es"))
+my_spa_stopwords <- unique(text_cleaning(stopwords("es", source = "stopwords-iso"), language = "es"))  
 ```
 
 
-###Borro Stopwords
+### Borro Stopwords
 ```{r}
 del_stopwords = function(txt, stopword_list){
-  remove_regex = paste("\\b(", paste(my_eng_stopwords, collapse = "|"),")\\W", sep="")
+  remove_regex = paste("\\b(", paste(stopword_list, collapse = "|"),")\\W", sep="")
   txt = gsub(remove_regex, " ", txt)
   txt = gsub("\\W+\\b", " ", txt)
   return(txt)
