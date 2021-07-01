@@ -25,7 +25,7 @@ df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
 df_charts_raw <- read.csv("data/df_charts_sin_duplicados.csv")
 df_audio_features_raw <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 df_lyrics <- read.csv("data/df_lyrics.csv")
-
+ 
 ```
 
 
