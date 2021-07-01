@@ -434,55 +434,82 @@ join_audio_charts %>%
 
 
 ```{r}
+
+#normalizacion de todas las vbles
 join_audio_charts %>% 
   mutate_all(scale)
   
 
-apply(X = x[,-c(1,2)], MARGIN = 2,  FUN =  function(x){ cut(x, quantile(x, robs = seq(0, 1, 0.25)),
-                                                            label = c("Muy Alta", "Alta", "Media", "Baja")  )}  )
-
-
+#prueba fallida
 join_audio_charts %>% 
   ungroup() %>% 
   group_by(artist_name, track_name) %>% 
-  mutate_all( function(x){ cut(x, quantile(x, probs = seq(0, 1, 0.25) ), labels = c("Muy Alta","Alta" ,"Media", "Baja") ) } )
+  mutate_all( function(x){ cut(x, quantile(x, probs = seq(0, 1, 0.25
+                                                          )
+                                           # ) , labels = c("Muy Alta","Alta" ,"Media", "Baja"
+                                           # ) , labels = c("Muy Alta","Alta" ,"Media", "Baja"
+                                           ) , labels = c("Muy Alta" , "Media", "Baja"
+                                                          )
+                               ) }
+              )
+  
 
-###############
 
-
-# Discretizaciones basadas en Quantile
-cut(join_audio_charts$position_avg, breaks = c(1, 25, 100,200),#quantile(df_feat$position), 
-    labels = c("Muy Alta","Media", "Baja")) #c("Muy Alta", "Alta","Media", "Baja"))
-
-
-df_cat <-  join_audio_charts[, c("artist_name","track_name")]
-cols <- names(join_audio_charts)[!names(join_audio_charts) %in% c("artist_name","track_name")]
-df_num = join_audio_charts[,cols]
+# Discretizaciones basadas en Quantile (FUNCIONA)
+cut(join_audio_charts$position_avg, quantile(join_audio_charts$position_avg, probs = seq(0, 1, 0.25
+                                                          )),  labels = c("Muy Alta", "Alta", "Media", "Baja")) 
 
 
 library(R.oo)
-# intToChar(65:(65+length(breaks)))
-# intToUtf8(65:78,multiple=TRUE)
 
+cols <- names(join_audio_charts)[!names(join_audio_charts) %in% c("artist_name","track_name")]
+df_num = join_audio_charts[,cols]
+
+df_cat <-  join_audio_charts[, c("artist_name","track_name")]
 for(i in seq_along(df_num) ){
 
-  breaks =unique(quantile(df_num[[i]], probs = seq(0, 1, 0.25)))
+  breaks =unique(quantile(df_num[[i]], probs = seq(0, 1, 0.33)))
+  # breaks =unique(quantile(df_num[[i]], probs = seq(0, 1, 0.25)))
+  # breaks =quantile(df_num[[i]] , names = FALSE)
 
-  # label = intToChar(65:(65+length(breaks)))
+  label = intToChar(65:(63+length(breaks)))
+  # label = c("Muy Alta", "Alta", "Media", "Baja")
 
   x <-   cut(df_num[[i]], breaks=breaks,
-            # labels = label )
-            labels  = c("Muy Alta","Alta" ,"Media", "Baja") )
+            labels = label )
+            # labels  = c("Muy Alta","Alta" ,"Media", "Baja") )
 
-  df_cat <-  cbind(df_cat, x )
+  df_cat <-  cbind(df_cat,  x )
   }
 
+summary(df_num$popularidad)
+quantile(df_num$popularidad)
 
-####################
-apply(df_num, 2, function(x){ cut(x, quantile(x, probs = seq(0, 1, 0.25) ),
-                             # include.lowest=TRUE,
-                labels = c("Muy Alta","Alta" ,"Media", "Baja") ) } )
+summary(df_num$tempo)
+quantile(df_num$tempo)
 
+# seteo de nombres
+names(df_cat) <- names(join_audio_charts)
+
+join_audio_charts  %>% filter(track_name =="Juice WRLD Speaks From Heaven - Outro")
+df_cat  %>% filter(track_name =="Baby")
+df_cat  %>% filter(track_name =="goodbye")
+df_cat  %>% filter(track_name =="DÁKITI")
+join_audio_charts  %>% filter(track_name =="Rule The World (feat. Ariana Grande)")
+df_charts  %>% filter(Track_Name =="Rule The World (feat. Ariana Grande)")
+
+join_audio_charts  %>%
+  group_by(artist_name, track_name) %>%
+  arrange(streams_avg)
+  # slice(which.max(danceability))
+  # filter(danceability == max(danceability, na.rm =T))
+
+#analisis de missing values
+mice::md.pattern(df_cat, plot = T, rotate.names = T)
+
+sum(!complete.cases(df_cat))
+
+summary(VIM::aggr(df_cat, sortVar= T,plot=F))
 ```
 
 
@@ -872,6 +899,7 @@ biglou <- read.csv("https://www.cs.cmu.edu/~biglou/resources/bad-words.txt", hea
 ####################################################################
 ####### Generación de la Matríz Término-Documento del corpus #######
 ####################################################################
+#función
 corpus.pro2tdm <- function(corpus, ponderacion, n_terms){
   #corpus
   
@@ -894,21 +922,35 @@ corpus.pro2tdm <- function(corpus, ponderacion, n_terms){
   return(matriz_nf)
   
   }
-  
-corpus_eng = Corpus(VectorSource(enc2utf8(en_lyrics$lyrics)))
+
+# ingles  
+corpus_eng = Corpus(VectorSource(enc2utf8(en_lyrics$sin_stopwords)))
 matriz <- corpus.pro2tdm(corpus = corpus_eng, ponderacion= "weightTf",n_terms= 150)
-
-dim(matriz)
-
 df_tm <- as.data.frame(matriz)
-head(df_tm,2)
+
+#español
+corpus_esp = Corpus(VectorSource(enc2utf8(spa_lyrics$sin_stopwords)))
+matriz_esp <- corpus.pro2tdm(corpus = corpus_esp, ponderacion= "weightTf",n_terms= 150)
+df_tm_esp <- as.data.frame(matriz_esp)
+```
+
+
+## JOIN CATEGORICAS Y LYRICS
+### Inglés
+```{r}
 
 ## Join matriz de palabras con artista y track
-df_ly_feat <- cbind(df_lyrics_seleccionado[-c(3)], df_tm)
+df_ly_feat <- merge(x = cbind(en_lyrics[-c(3,4,5)], df_tm),
+                    y =df_cat ,
+                    by.x = c("artist_name","track_name"), 
+                   by.y = c("artist_name","track_name"))
 
 nrow(df_tm)
-nrow(df_lyrics_seleccionado)
-nrow(df_ly_feat)
+nrow(en_lyrics) # 1055 instancias
+nrow(df_ly_feat) #joinean 869
+na.omit(df_ly_feat)
+
+mice::md.pattern(df_ly_feat[, 153:ncol(df_ly_feat)], rotate.names = T)
 
 filter <- !names(df_ly_feat) %in% c("artist_name", "track_name" )
 
@@ -931,6 +973,9 @@ df_melt <- df_melt[df_melt$value != 0,]
 df_melt_txt <- df_melt[df_melt$value == 1,]
 df_melt_cat <- df_melt[df_melt$value != 1,]
 
+df_melt_cat$variable =  paste0(df_melt_cat$variable, "=", as.character(df_melt_cat$value))
+
+
 head(df_melt_txt )
 dim(df_melt_txt )
 
@@ -948,10 +993,62 @@ df_melt_txt %>% filter(startsWith(variable, "PROF"))
 
 
 # df_melt_txt[df_melt_txt$variable %in% biglou$words,]
+```
+
+### Español
+```{r}
+df_ly_feat_esp <- merge(x = cbind(spa_lyrics[-c(3,4,5)], df_tm_esp),
+                    y =df_cat ,
+                    by.x = c("artist_name","track_name"), 
+                   by.y = c("artist_name","track_name"))
+
+nrow(spa_lyrics)
+nrow(df_ly_feat_esp)
+na.omit(df_ly_feat_esp)
+
+mice::md.pattern(df_ly_feat_esp[, 153:ncol(df_ly_feat_esp)], rotate.names = T)
 
 
-df_melt_txt_to_ruls <- df_melt_txt[, -c(3)]
-names(df_melt_txt_to_ruls) <- c("id", "item")
+df_ly_feat_ok_esp <- df_ly_feat_esp[, filter]
+
+df_ly_feat_ok_esp$id = 1:nrow(df_ly_feat_ok_esp)
+
+df_melt_esp <- reshape2::melt(data = df_ly_feat_ok_esp[,3:ncol(df_ly_feat_ok_esp)], id.vars = c("id"))  %>%
+  arrange(id)
+
+df_melt_esp <- df_melt_esp[df_melt_esp$value != 0,]
+
+df_melt_esp_txt <- df_melt_esp[df_melt_esp$value == 1,]
+df_melt_esp_cat <- df_melt_esp[df_melt_esp$value != 1,]
+
+df_melt_esp_cat$variable =  paste0(df_melt_esp_cat$variable, "=", as.character(df_melt_esp_cat$value))
+
+
+#denomino a los términos profanos
+df_melt_esp_txt <- df_melt_esp_txt %>% 
+  mutate(variable = case_when(as.character(variable) %in% malas_palabras$limpias ~
+                                paste0("PROFANE_", as.character(variable)),
+                              T ~ paste0("TERM_", as.character(variable))
+                              )  
+         )
+
+
+df_melt_txt_to_ruls_esp <- rbind(df_melt_esp_txt, df_melt_esp_cat)
+
+df_melt_txt_to_ruls_esp <- na.omit(df_melt_txt_to_ruls_esp[,-c(3)])
+names(df_melt_txt_to_ruls_esp ) = c("TID", "item")
+
+
+```
+
+# REGLAS
+## Ingles
+```{r}
+df_melt_txt_to_ruls <- rbind(df_melt_txt, df_melt_cat)
+
+df_melt_txt_to_ruls <- na.omit(df_melt_txt_to_ruls[,-c(3)])
+names(df_melt_txt_to_ruls ) = c("TID", "item")
+
 
 write.table(df_melt_txt_to_ruls, file="data/transaccions_lyrics_features.txt", row.names = F)
 
@@ -963,13 +1060,14 @@ arules::inspect(head(lyrics_trans, 3))
 
 summary(lyrics_trans)
 reglas <- apriori(lyrics_trans, parameter = list(support=0.1,
-                    confidence = 0.5, target  = "rules"  ))
+                    confidence = 0.1, target  = "rules"  ))
 
-reglas_sub <- subset(reglas, subset = rhs %pin% "PROF_")
+reglas_sub <- subset(reglas, subset = lhs %pin% "PROF_")
 arules::inspect(head(sort(reglas_sub, by = "lift", decreasing = T),5))
 
 ```
 
+## Inglés
 
 ## Carga de Igal (UNIFICAR)
 ```{r}
@@ -1035,83 +1133,4 @@ inspect(head(sort(rules.sub, by = "lift", decreasing = TRUE),10))
 ```
 
 
-
-
-
-# LIMPIO HASTA ACA
-
-# Preguntas de investigacion
-
-## Patron Comun Canciones del Chart
-¿Qué características tienen las canciones que están en el chart? ¿Cual es el patrón comun que tienen las canciones más escuchadas? (ver dispersiones, media, grafico comparativo)
-```{r}
-
-
-#funcion para escalar variable
-
-
-```
-```{r}
-#anti_join
-anti_join_audio_charts <- df_audio_features %>% 
-  select("artist_name","artist_all", "artist_key",
-         "track_name", "external_urls_spotify", "album_name", "album_release_year",
-         all_of(features_continuas), all_of(features_categoricas)) %>% 
-  anti_join( df_charts %>%
-               select( "Track_Name", "Artist", "URL"),
-               by = c("external_urls_spotify" ="URL",
-                      "artist_key" ="Artist"  ))
-               # by = c("track_name" = "Track_Name"))
-
-
-anti_join_audio_charts_complete <- na.omit(anti_join_audio_charts)
-anti_join_audio_charts_complete_scale <- anti_join_audio_charts_complete %>% 
-  distinct() %>% 
-  select(features_continuas)  %>% 
-  mutate_all(scale_vble)
-nrow(anti_join_audio_charts_complete_scale)
-
-```
-
-## Qué temas perduran mucho en el ranking
-
-### Artistas que mas aparecen en el chart
-```{r}
-join_audio_charts %>% 
-  group_by(artist_name) %>% 
-  dplyr::summarise(n = n()) %>% 
-  arrange(-n)
-```
-
-### Tracks que mas aparecen en el chart
-```{r}
-join_audio_charts %>% 
-  group_by(track_name, artist_name,external_urls_spotify) %>% 
-  dplyr::summarise(n = n()) %>% 
-  arrange(-n) %>% 
-  select(track_name, n, everything(.))
-
-```
-
-
-# ¿Cuánto tiempo están en un chart? 
-
-```{r}
-# cantidad de semanas que estuvieron en el chart
-
-df_charts %>% 
-  mutate(week_start=as.Date(week_start),
-         week_end = as.Date(week_end),
-         week_year = (year(week_start))) %>%
-  arrange(Artist, Track_Name) %>% 
-  group_by(Artist, Track_Name, URL) %>% 
- dplyr:: summarise( day_in = min(week_start),
-             year_in = year(day_in),
-             day_max = max(week_end),
-             year_max = year(day_max),
-             duracion_chart_dias = day_max-day_in,
-             duracion_chart_anio = year_max - year_in) %>% 
-  arrange(Artist)
-
-```
 
