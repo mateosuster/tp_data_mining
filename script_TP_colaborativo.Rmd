@@ -194,6 +194,7 @@ for(i in features_categoricas){
   # pie(table(df_features_categoricos[,i]))
 }
 
+hist(df_audio_features$instrumentalness)
 ```
 
 
@@ -325,7 +326,12 @@ round((
 
 b <- df_sesgadas_inv_sqrt[,c("cant_markets", "energy", "instrumentalness", "liveness" , "speechiness")]
 names(b) <- paste(names(b), "_invsqrt", sep="")
+
+par(mfrow=c(1,2))
 ggplot(data=reshape::melt(b), aes(value))+
+  geom_histogram(bins = 5)+facet_wrap(~variable, scales = "free")
+
+ggplot(data=reshape::melt(a), aes(value))+
   geom_histogram(bins = 5)+facet_wrap(~variable, scales = "free")
 
 ```
@@ -333,7 +339,9 @@ ggplot(data=reshape::melt(b), aes(value))+
 
 ## Sesgo DF charts
 ```{r}
-df_ses_chart <- df_charts %>% select( "Track_Name", "Artist", 
+df_ses_chart <- df_charts %>% 
+  ungroup() %>% 
+  select( "Track_Name", "Artist", 
                        "streams_avg", "position_avg",
                        "semanas_sum", "popularidad")
 
@@ -380,16 +388,10 @@ charts_sin_sesgo <- cbind(df_ses_chart[,-c(3,5)],
 ```
 
 
-## Discretización
+## Normalizacion
 
+### Audio features
 ```{r}
-
-scale_vble <- function(x){
-  (x - mean(x, na.rm = T))/sd(x, na.rm = T)
-}
-
-
-
 #join entre variables transformadas y resto features
 audio_sin_sesgo <- df_audio_features %>% 
   select("artist_name", "artist_key",
@@ -398,57 +400,65 @@ audio_sin_sesgo <- df_audio_features %>%
   select(!variables_sesgo) 
 
 
-#falta transformar df_charts !!!
-
-join_audio_charts <- cbind(audio_sin_sesgo, df_sesgadas_log_adjust[,c("acousticness", "duration_ms")],
+audio_ft_to_discretize <- cbind(audio_sin_sesgo, df_sesgadas_log_adjust[,c("acousticness", "duration_ms")],
                            df_sesgadas_inv_sqrt[,c("instrumentalness", "cant_markets",
-                                                   "energy", "liveness" , "speechiness")]) %>% 
-  right_join( charts_sin_sesgo %>%
-               select( "Track_Name", "Artist", 
-                       "streams_avg", "position_avg",
-                       "semanas_sum", "popularidad"),
-               by = c("track_name" = "Track_Name", 
-                      "artist_key" ="Artist")) %>% 
-  select(-c("artist_key", "key_name", "explicit", "mode_name" ,"key_mode")) %>% 
-  group_by(artist_name, track_name) %>%
-  summarise_all( function(x) mean(x, na.rm= T))%>%
-  ungroup() %>% 
-  filter(!is.na(artist_name)) %>% 
-  group_by(artist_name, track_name)# %>%
-  # mutate_all(function(x) scales::rescale(x, to=c(0,1)))
-  # mutate_all(function(x)  (x-min(x, na.rm = T)) / (max(x, na.rm = T)-min(x, na.rm = T)) ) 
+                                                   "liveness" , "speechiness")]) %>%
+    select(-c( "key_name", "explicit", "mode_name" ,"key_mode")) %>% 
+   group_by(artist_name, artist_key, track_name)  %>% 
+  distinct(.keep_all = T)
   
 
-
-```
-
-```{r}
-join_audio_charts %>% 
-  gather(key = variable, value = valor, 3:ncol(.)) %>% 
-  ggplot(aes(valor))+
-  geom_histogram()+
-  facet_wrap(~variable, scales = "free")
 ```
 
 
-
-
 ```{r}
-
 #normalizacion de todas las vbles
-join_audio_charts %>% 
-  mutate_all(scale)
-  
+scale_vble <- function(x){
+  (x - mean(x, na.rm = T))/sd(x, na.rm = T)
+}
 
-#prueba fallida
-join_audio_charts %>% 
+audio_ft_to_discretize_norm <- audio_ft_to_discretize %>% 
+  # mutate_all(scale)
+  mutate_all(scale_vble)#
+```
+
+
+```{r}
+ggplot(data= melt(audio_ft_to_discretize, id.vars = c("artist_name", "artist_key", "track_name")), aes(value))+
+         geom_histogram()+
+  facet_wrap(~variable, scales = "free")
+
+ggplot(data= melt(audio_ft_to_discretize_norm, id.vars = c("artist_name", "artist_key", "track_name")), aes(value))+
+         geom_histogram()+
+  facet_wrap(~variable, scales = "free")
+
+```
+### Charts
+```{r}
+charts_sin_sesgo_norm <- charts_sin_sesgo %>%
+  rename(track_name = Track_Name, artist = Artist) %>% 
   ungroup() %>% 
-  group_by(artist_name, track_name) %>% 
+  select(-c(track_name, artist)) %>%
+  mutate_all(function(x) {scale_vble(x)})
+  # mutate_at(., .vars = vars(-group_cols("Track_Name", "Artist")), function(x) {scale_vble(x)})
+
+charts_sin_sesgo_norm <- cbind(charts_sin_sesgo[, c("Artist", "Track_Name")], charts_sin_sesgo_norm )
+```
+
+
+
+## Discretización
+
+```{r}
+#prueba fallida
+audio_ft_to_discretize_norm %>% 
+  ungroup() %>% 
+  group_by(artist_name, track_name, artist_key) %>% 
   mutate_all( function(x){ cut(x, quantile(x, probs = seq(0, 1, 0.25
-                                                          )
+                                                          ), na.rm = T,
                                            # ) , labels = c("Muy Alta","Alta" ,"Media", "Baja"
                                            # ) , labels = c("Muy Alta","Alta" ,"Media", "Baja"
-                                           ) , labels = c("Muy Alta" , "Media", "Baja"
+                                           ) , labels = c("Muy Alta" ,"Alta", "Media", "Baja"
                                                           )
                                ) }
               )
@@ -456,19 +466,16 @@ join_audio_charts %>%
 
 
 # Discretizaciones basadas en Quantile (FUNCIONA)
-cut(join_audio_charts$position_avg, quantile(join_audio_charts$position_avg, probs = seq(0, 1, 0.25
-                                                          )),  labels = c("Muy Alta", "Alta", "Media", "Baja")) 
-
 
 library(R.oo)
 
-cols <- names(join_audio_charts)[!names(join_audio_charts) %in% c("artist_name","track_name")]
-df_num = join_audio_charts[,cols]
+cols <- names(audio_ft_to_discretize_norm)[!names(audio_ft_to_discretize_norm) %in% c("artist_name","artist_key", "track_name")]
+df_num = audio_ft_to_discretize_norm[,cols]
 
-df_cat <-  join_audio_charts[, c("artist_name","track_name")]
+df_cat <-  audio_ft_to_discretize_norm[, c("artist_name","artist_key", "track_name")]
 for(i in seq_along(df_num) ){
 
-  breaks =unique(quantile(df_num[[i]], probs = seq(0, 1, 0.33)))
+  breaks =unique(quantile(df_num[[i]], probs = seq(0, 1, 0.33) ,na.rm = T))
   # breaks =unique(quantile(df_num[[i]], probs = seq(0, 1, 0.25)))
   # breaks =quantile(df_num[[i]] , names = FALSE)
 
@@ -482,23 +489,17 @@ for(i in seq_along(df_num) ){
   df_cat <-  cbind(df_cat,  x )
   }
 
-summary(df_num$popularidad)
-quantile(df_num$popularidad)
-
-summary(df_num$tempo)
-quantile(df_num$tempo)
-
 # seteo de nombres
-names(df_cat) <- names(join_audio_charts)
+names(df_cat) <- names(audio_ft_to_discretize_norm)
 
-join_audio_charts  %>% filter(track_name =="Juice WRLD Speaks From Heaven - Outro")
-df_cat  %>% filter(track_name =="Baby")
-df_cat  %>% filter(track_name =="goodbye")
-df_cat  %>% filter(track_name =="DÁKITI")
-join_audio_charts  %>% filter(track_name =="Rule The World (feat. Ariana Grande)")
-df_charts  %>% filter(Track_Name =="Rule The World (feat. Ariana Grande)")
+# audio_ft_to_discretize_norm  %>% filter(track_name =="Juice WRLD Speaks From Heaven - Outro")
+# df_cat  %>% filter(track_name =="Baby")
+# df_cat  %>% filter(track_name =="goodbye")
+# df_cat  %>% filter(track_name =="DÁKITI")
+# audio_ft_to_discretize_norm  %>% filter(track_name =="Rule The World (feat. Ariana Grande)")
+# df_charts  %>% filter(Track_Name =="Rule The World (feat. Ariana Grande)")
 
-join_audio_charts  %>%
+audio_ft_to_discretize_norm  %>%
   group_by(artist_name, track_name) %>%
   arrange(streams_avg)
   # slice(which.max(danceability))
@@ -515,7 +516,29 @@ summary(VIM::aggr(df_cat, sortVar= T,plot=F))
 
 
 
+```{r}
 
+# JOIN FINAL
+
+#falta transformar df_charts !!!
+join_audio_charts <- audio_ft_to_discretize_norm %>% 
+  right_join( charts_sin_sesgo_norm ,
+               by = c("track_name" = "Track_Name", 
+                      "artist_key" ="Artist")) %>% 
+  select(-c("artist_key", "key_name", "explicit", "mode_name" ,"key_mode")) %>% 
+  group_by(artist_name, track_name) %>%
+  summarise_all( function(x) mean(x, na.rm= T)) %>%
+  ungroup() %>% 
+  filter(!is.na(artist_name)) %>% 
+  group_by(artist_name, track_name)# %>%
+  # mutate_all(function(x) scales::rescale(x, to=c(0,1)))
+  # mutate_all(function(x)  (x-min(x, na.rm = T)) / (max(x, na.rm = T)-min(x, na.rm = T)) ) 
+  
+```
+
+
+
+# Normalizacion vieja
 ### Z-Score de Variables que "tienden a la normal"
 ```{r}
 
@@ -693,6 +716,8 @@ for (i in features_continuas){
 ```
 
 
+
+
 # LYRICS
 
 
@@ -704,27 +729,29 @@ df_lyrics <- read.csv("data/df_lyrics.csv") %>%
   select(-X)
 
 df_lyrics_unicas <- df_lyrics %>% 
-  distinct(artist_name, track_name, lyrics)
+  distinct(artist_name, track_name, lyrics, .keep_all = T)
 
+#join
+join_ly_ft = merge(x = df_cat, 
+      y = df_lyrics_unicas,
+      by.x = c("artist_name","track_name"),
+      by.y = c("artist_name","track_name")) %>% 
+  distinct(lyrics, .keep_all = T)
 
 #filtro de idioma
-spa_lyrics = df_lyrics_unicas[textcat(df_lyrics_unicas$lyrics)=="spanish",]
+spa_lyrics = join_ly_ft[textcat(join_ly_ft$lyrics)=="spanish", ] 
+                        #c("artist_name", "track_name", "lyrics")] 
+en_lyrics = join_ly_ft[textcat(join_ly_ft$lyrics)%in% c("english", "scots"), ]
+                       #c("artist_name", "track_name", "lyrics")] 
 
-
-en_lyrics = df_lyrics_unicas[textcat(df_lyrics_unicas$lyrics) %in% c("english", "scots"),]
 
 ```
 
-```{r}
-#chequeo cantidad de canciones por idioma
-100*(nrow(en_lyrics) + nrow(spa_lyrics))/nrow(df_lyrics_unicas)
-
-```
 
 ```{r}
 # tabla contingencia de idiomas
-idiomas = textcat(df_lyrics_unicas$lyrics)
-sort(table(idiomas), decreasing = T)
+# idiomas = textcat(df_lyrics_unicas$lyrics)
+# sort(table(idiomas), decreasing = T)
 ```
 
 ### limpieza ingles
