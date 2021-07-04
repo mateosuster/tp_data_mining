@@ -22,7 +22,7 @@ library(tau)
 # CARGA DE DATOS  
 ```{r}
 df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
-df_charts_raw <- read.csv("data/df_charts_sin_duplicados.csv")
+ df_charts_raw <- read.csv("data/df_charts_sin_duplicados.csv")
 df_audio_features_raw <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 df_lyrics <- read.csv("data/df_lyrics.csv")
  
@@ -286,12 +286,13 @@ for (feature in variables_sesgo){
 
 inv_sqrt_ajustada = function(x, delta){
   if (x==0.0){
-    return(1/sqrt(x+delta))
+    return(1/sqrt(x+0.000001))
   }else{
     return(1/sqrt(x))
   }
 }
-delta <- 10^(-6)
+delta <- sqrt(10^(-6))
+
 
 par(mfrow=c(3,5))
 for (feature in variables_sesgo){
@@ -718,7 +719,7 @@ for (i in features_continuas){
 
 
 
-# LYRICS
+|# LYRICS
 
 
 ## Filtro por idioma
