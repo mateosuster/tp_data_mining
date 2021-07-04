@@ -105,6 +105,7 @@ df_charts <- df_charts_raw %>%
             streams_max = (max(Streams)/10^6 ),
             streams_avg = (mean(Streams)/10^6),
             position_avg = mean(Position, na.rm = T),
+            position_median = median(Position, na.rm = T),
             position_min = min(Position), 
             position_max = max(Position)) %>% 
   ungroup() %>% 
@@ -448,8 +449,146 @@ charts_sin_sesgo_norm <- cbind(charts_sin_sesgo[, c("Artist", "Track_Name")], ch
 
 
 
-## Discretización
+# Discretización
 
+# Discretización
+## Audio Features
+
+```{r}
+
+#funciones
+cut_median <- function(x){
+  cut(x, 
+      breaks = c(0,median(x)/2,
+                 median(x),
+                 quantile(x,probs = 0.75),
+                 Inf), 
+      include.lowest = T,
+      labels=c("Baja","Media","Alta", "Muy alta") )
+  
+}
+
+cut_binary <- function(x){
+  cut(x,
+      breaks = c(min(x,na.rm = T),
+                 median(x),
+                 Inf), 
+      include.lowest = T,
+      labels=c("Baja","Alta"))
+}
+
+cut_cuantile <- function(x){
+  cut(x, 
+      breaks = quantile(x), 
+      include.lowest = T,
+      labels=c("Baja","Media","Alta", "Muy alta") )
+}
+
+
+#select data
+df_audio_ft_select <-df_audio_features %>% 
+  select(artist_name, artist_key, track_name, features_continuas, -loudness,loudness = loudness_reg_imp ) %>%
+  group_by(track_name, artist_key, artist_name) %>%
+  summarise_all(function(x) mean(x, na.rm = T)) %>% 
+  left_join(df_audio_features %>% 
+               select(artist_name, artist_key, track_name, explicit, mode_name) %>% 
+               distinct(artist_name, artist_key, track_name, .keep_all = T) )
+              
+
+#creacion columnas
+#by median
+df_audio_ft_select$acousticness_cat <- cut_median(df_audio_ft_select$acousticness)
+df_audio_ft_select$duration_ms_cat <- cut_median(df_audio_ft_select$duration_ms)
+df_audio_ft_select$liveness_cat <-cut_median(df_audio_ft_select$liveness)
+df_audio_ft_select$speechiness_cat <- cut_median(df_audio_ft_select$speechiness)
+
+#by binary
+df_audio_ft_select$instrumentalness_cat <- cut_binary(df_audio_ft_select$instrumentalness)
+df_audio_ft_select$loudness_cat <- cut_binary(df_audio_ft_select$loudness)
+
+#by cunatile
+df_audio_ft_select$tempo_cat <- cut_cuantile(df_audio_ft_select$tempo)
+df_audio_ft_select$valence_cat <- cut_cuantile(df_audio_ft_select$valence)
+df_audio_ft_select$danceability_cat <- cut_cuantile(df_audio_ft_select$danceability)
+
+#cant markets
+df_audio_ft_select$cant_markets_cat <- cut(df_audio_ft_select$cant_markets, 
+                                           breaks = c(0, 70, 110, Inf), 
+                                           labels = c("Baja","Media","Alta"))
+
+#true categories vbles
+df_audio_ft_select$explicit_cat <- ifelse(df_audio_ft_select$explicit ==TRUE, "Si", "No")
+df_audio_ft_select$mode_name_cat <- df_audio_ft_select$mode_name
+
+# filtro
+df_audio_ft_cat <- df_audio_ft_select %>% 
+  select( artist_name, artist_key, track_name, contains("_cat")  )
+
+
+x <-  df_audio_ft_cat <- df_audio_ft_select %>% 
+  select( contains("_cat")  )
+
+for(i in names(x) ){
+  barplot(table(x[,i]), las=2,
+          main = paste("Barplot de", i, "(charts)") )
+
+   # cat(table(  x[,i] ))
+   }
+
+
+```
+
+
+## Charts
+```{r}
+df_charts_sel <- df_charts %>% 
+  ungroup() %>% 
+  select( "Track_Name", "Artist", 
+                       "streams_avg", "position_median",
+                       "semanas_sum", "popularidad")
+
+ggplot(reshape2::melt(df_charts_sel[,3:6]), aes(value))+
+  geom_histogram()+
+  facet_wrap(~variable, scales = "free")+
+  labs(title = "Histogramas originales")
+
+
+df_charts_sel$streams_avg_cat = cut_cuantile(df_charts_sel$streams_avg)
+df_charts_sel$popularidad_cat = cut_cuantile(df_charts_sel$popularidad)
+
+df_charts_sel$position_median_cat = cut(df_charts_sel$position_median,
+                                        breaks = quantile(df_charts_sel$position_median), 
+                                        include.lowest = T,
+                                        labels=c( "Muy alta", "Alta", "Media", "Baja"))
+
+df_charts_sel$semanas_sum_cat = cut(df_charts_sel$semanas_sum,
+                                    breaks = c(0, 2,4,13, Inf),
+                                    include.lowest = T,
+                                    labels=c("Baja","Media","Alta", "Muy alta"))
+
+
+# filtro
+df_charts_cat <- df_charts_sel %>% 
+  select( Artist,  Track_Name, contains("_cat")  )
+
+```
+
+
+
+```{r}
+# JOIN FINAL
+
+df_cat <- df_audio_ft_cat %>% 
+  right_join( df_charts_cat ,
+               by = c("track_name" = "Track_Name", 
+                      "artist_key" ="Artist")) 
+
+```
+
+
+
+
+### Viejo
 ```{r}
 #prueba fallida
 audio_ft_to_discretize_norm %>% 
@@ -968,10 +1107,7 @@ df_tm_esp <- as.data.frame(matriz_esp)
 ```{r}
 
 ## Join matriz de palabras con artista y track
-df_ly_feat <- merge(x = cbind(en_lyrics[-c(3,4,5)], df_tm),
-                    y =df_cat ,
-                    by.x = c("artist_name","track_name"), 
-                   by.y = c("artist_name","track_name"))
+df_ly_feat <-  cbind(en_lyrics[, 1:19], df_tm)
 
 nrow(df_tm)
 nrow(en_lyrics) # 1055 instancias
@@ -993,7 +1129,7 @@ head(df_ly_feat, 3)
 
 df_ly_feat$id = 1:nrow(df_ly_feat)
 
-df_melt <- reshape2::melt(data = df_ly_feat[,3:ncol(df_ly_feat)], id.vars = c("id"))  %>%
+df_melt <- reshape2::melt(data = df_ly_feat[,4:ncol(df_ly_feat)], id.vars = c("id"))  %>%
   arrange(id)
 
 df_melt <- df_melt[df_melt$value != 0,]
@@ -1025,10 +1161,7 @@ df_melt_txt %>% filter(startsWith(variable, "PROF"))
 
 ### Español
 ```{r}
-df_ly_feat_esp <- merge(x = cbind(spa_lyrics[-c(3,4,5)], df_tm_esp),
-                    y =df_cat ,
-                    by.x = c("artist_name","track_name"), 
-                   by.y = c("artist_name","track_name"))
+df_ly_feat_esp <- cbind(spa_lyrics[, 1:19], df_tm_esp)
 
 nrow(spa_lyrics)
 nrow(df_ly_feat_esp)
@@ -1041,7 +1174,7 @@ df_ly_feat_ok_esp <- df_ly_feat_esp[, filter]
 
 df_ly_feat_ok_esp$id = 1:nrow(df_ly_feat_ok_esp)
 
-df_melt_esp <- reshape2::melt(data = df_ly_feat_ok_esp[,3:ncol(df_ly_feat_ok_esp)], id.vars = c("id"))  %>%
+df_melt_esp <- reshape2::melt(data = df_ly_feat_ok_esp[,4:ncol(df_ly_feat_ok_esp)], id.vars = c("id"))  %>%
   arrange(id)
 
 df_melt_esp <- df_melt_esp[df_melt_esp$value != 0,]
@@ -1087,7 +1220,7 @@ lyrics_trans <- read.transactions("data/transaccions_lyrics_features.txt", forma
 arules::inspect(head(lyrics_trans, 3))
 
 summary(lyrics_trans)
-reglas <- apriori(lyrics_trans, parameter = list(support=0.1,
+reglas <- apriori(lyrics_trans, parameter = list(support=0.01,
                     confidence = 0.1, target  = "rules"  ))
 
 reglas_sub <- subset(reglas, subset = lhs %pin% "PROF_")
