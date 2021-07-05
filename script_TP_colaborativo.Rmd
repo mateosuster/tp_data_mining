@@ -874,7 +874,7 @@ df_lyrics_unicas <- df_lyrics %>%
 #join
 join_ly_ft = merge(x = df_cat, 
       y = df_lyrics_unicas,
-      by.x = c("artist_name","track_name"),
+      by.x = c("artist_key","track_name"),
       by.y = c("artist_name","track_name")) %>% 
   distinct(lyrics, .keep_all = T)
 
