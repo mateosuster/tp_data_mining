@@ -525,7 +525,7 @@ df_audio_ft_cat <- df_audio_ft_select %>%
   select( artist_name, artist_key, track_name, contains("_cat")  )
 
 
-x <-  df_audio_ft_cat <- df_audio_ft_select %>% 
+x <- df_audio_ft_select %>% 
   select( contains("_cat")  )
 
 for(i in names(x) ){
@@ -1058,6 +1058,15 @@ malas_palabras$limpias = text_cleaning(malas_palabras$X1, language="es")
 racist_words <- unique(tolower(lexicon::profanity_racist))
 
 biglou <- read.csv("https://www.cs.cmu.edu/~biglou/resources/bad-words.txt", header=FALSE, col.names = c("words"))
+
+contar_bad_words <- function(x){
+  x <- profanity(x,profanity_list = biglou$words)
+  q <- sum(x$profanity_count)
+  return (q)
+  }
+en_lyrics$cant_bad_words <- sapply(en_lyrics[,"sin_stopwords"], contar_bad_words)
+
+en_lyrics$bad_words_cat <- cut(en_lyrics$cant_bad_words, breaks = c(0,10,20,50,Inf), labels=c("bajo","medio","alto","muy_alto"))
 ```
 
 
@@ -1106,8 +1115,11 @@ df_tm_esp <- as.data.frame(matriz_esp)
 ### Inglés
 ```{r}
 
+
+en_lyrics <- en_lyrics %>% select (-c("lyrics", "lyrics_cleaning","sin_stopwords", "cant_bad_words"))
+
 ## Join matriz de palabras con artista y track
-df_ly_feat <-  cbind(en_lyrics[, 1:19], df_tm)
+df_ly_feat <-  cbind(en_lyrics, df_tm)
 
 nrow(df_tm)
 nrow(en_lyrics) # 1055 instancias
@@ -1129,7 +1141,7 @@ head(df_ly_feat, 3)
 
 df_ly_feat$id = 1:nrow(df_ly_feat)
 
-df_melt <- reshape2::melt(data = df_ly_feat[,4:ncol(df_ly_feat)], id.vars = c("id"))  %>%
+df_melt <- reshape2::melt(data = df_ly_feat[,3:ncol(df_ly_feat)], id.vars = c("id"))  %>%
   arrange(id)
 
 df_melt <- df_melt[df_melt$value != 0,]
@@ -1161,7 +1173,8 @@ df_melt_txt %>% filter(startsWith(variable, "PROF"))
 
 ### Español
 ```{r}
-df_ly_feat_esp <- cbind(spa_lyrics[, 1:19], df_tm_esp)
+df_ly_feat_esp <- cbind(spa_lyrics, df_tm_esp)
+df_ly_feat_esp <- df_ly_feat_esp %>% select (-c("lyrics", "lyrics_cleaning","sin_stopwords"
 
 nrow(spa_lyrics)
 nrow(df_ly_feat_esp)
@@ -1174,7 +1187,7 @@ df_ly_feat_ok_esp <- df_ly_feat_esp[, filter]
 
 df_ly_feat_ok_esp$id = 1:nrow(df_ly_feat_ok_esp)
 
-df_melt_esp <- reshape2::melt(data = df_ly_feat_ok_esp[,4:ncol(df_ly_feat_ok_esp)], id.vars = c("id"))  %>%
+df_melt_esp <- reshape2::melt(data = df_ly_feat_ok_esp[,2:ncol(df_ly_feat_ok_esp)], id.vars = c("id"))  %>%
   arrange(id)
 
 df_melt_esp <- df_melt_esp[df_melt_esp$value != 0,]
@@ -1190,8 +1203,7 @@ df_melt_esp_txt <- df_melt_esp_txt %>%
   mutate(variable = case_when(as.character(variable) %in% malas_palabras$limpias ~
                                 paste0("PROFANE_", as.character(variable)),
                               T ~ paste0("TERM_", as.character(variable))
-                              )  
-         )
+                              ))
 
 
 df_melt_txt_to_ruls_esp <- rbind(df_melt_esp_txt, df_melt_esp_cat)
