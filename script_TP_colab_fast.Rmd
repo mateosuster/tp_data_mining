@@ -1,0 +1,638 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# LIBRERIAS
+```{r, echo=FALSE, warning=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(readxl)
+library(sqldf)
+library(lubridate)
+library(dplyr)
+library(sentimentr)
+library(arules)
+library(stringi)
+library(stringr)
+library(tm)
+library(tau)
+```
+
+# CARGA DE DATOS  
+```{r}
+df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
+ df_charts_raw <- read.csv("data/df_charts_sin_duplicados.csv")
+df_audio_features_raw <- read.csv("data/audio_features_plano_sin_duplicados.csv")
+df_lyrics <- read.csv("data/df_lyrics.csv")
+ 
+```
+
+
+## Corrección duplicados
+```{r}
+# DF listo para el join con chrats
+df_audio_features <- df_audio_features_raw %>% 
+  group_by(track_name, external_urls_spotify) %>% 
+  mutate(artist_all = paste(artist_name, collapse = ",|,")) %>%
+  ungroup() %>% 
+  mutate(artist_key = sub(",|,.*", "", artist_all)) %>% 
+  dplyr::select(artist_name, artist_all, artist_key, everything(.)) %>% 
+  distinct(artist_key, external_urls_spotify, .keep_all = T) %>% 
+  as.data.frame()
+```
+
+## Creacion `cant_markets`
+```{r}
+contar_market <- function(x){
+q <- length(unlist(strsplit(x, split = ",")))
+return (q)
+  }
+df_audio_features$cant_markets <- sapply(df_audio_features[,"markets_concat"], contar_market)
+```
+
+
+## Vectores de features
+```{r}
+#features var continuos
+features_continuas <- c('acousticness', 'danceability', 'duration_ms', 'energy', 'instrumentalness', 'liveness', 'loudness', 'speechiness',   'tempo', 'valence', 'cant_markets')
+
+#features var_ categóricas
+features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode")
+
+```
+
+
+## Imputacion de loudness
+
+
+```{r}
+fit <- lm(loudness~energy+acousticness, data=df_audio_features)
+
+modelo <- fit$coefficients
+
+df_audio_features$loudness_reg_imp <- df_audio_features$loudness
+
+X <- df_audio_features[df_audio_features$loudness>0, c('energy', "acousticness")]
+
+df_audio_features$loudness_reg_imp[df_audio_features$loudness>0] <- modelo[1]+modelo[2]*X[,1]+modelo[3]*X[,2]
+
+summary(df_audio_features[,c("loudness", "loudness_reg_imp")])
+
+summary(fit)
+
+#graficos con loudness con imputacion
+par(mfrow = c(2,1)) 
+hist(df_audio_features[,'loudness_reg_imp'], main='loudness', xlab="")
+#hist(sqrt(df_audio_features[,'loudness_reg_imp']), main= 'loudness_sqrt', xlab="")
+boxplot(df_audio_features[,'loudness_reg_imp'], horizontal = T)
+#boxplot(sqrt(df_audio_features[,'loudness_reg_imp']), horizontal = T)
+
+
+
+```
+
+
+
+# CHARTS: agregación de features
+```{r}
+#metrica de popularidad
+df_charts <- df_charts_raw %>% 
+  group_by(Artist, Track_Name) %>%
+  dplyr:: summarise(semanas_sum = as.double(n()),
+            streams_sum = (sum(Streams, na.rm = T)/10^6 ),
+            streams_min = (min(Streams)/10^6 ),
+            streams_max = (max(Streams)/10^6 ),
+            streams_avg = (mean(Streams)/10^6),
+            position_avg = mean(Position, na.rm = T),
+            position_median = median(Position, na.rm = T),
+            position_min = min(Position), 
+            position_max = max(Position)) %>% 
+  ungroup() %>% 
+  mutate(popularidad = as.numeric(streams_sum*semanas_sum/position_avg) )
+
+library(reshape2)
+ggplot(melt(df_charts[,3:ncol(df_charts)]), aes(value))+
+  geom_histogram()+
+  facet_wrap(~variable , scales = "free")
+
+```
+
+
+# Discretización
+## Audio Features
+
+```{r}
+
+#funciones
+cut_median <- function(x){
+  cut(x, 
+      breaks = c(0,median(x)/2,
+                 median(x),
+                 quantile(x,probs = 0.75),
+                 Inf), 
+      include.lowest = T,
+      labels=c("Baja","Media","Alta", "Muy alta") )
+  
+}
+
+cut_binary <- function(x){
+  cut(x,
+      breaks = c(min(x,na.rm = T),
+                 median(x),
+                 Inf), 
+      include.lowest = T,
+      labels=c("Baja","Alta"))
+}
+
+cut_cuantile <- function(x){
+  cut(x, 
+      breaks = quantile(x), 
+      include.lowest = T,
+      labels=c("Baja","Media","Alta", "Muy alta") )
+}
+
+
+#select data
+df_audio_ft_select <-df_audio_features %>% 
+  select(artist_name, artist_key, track_name, features_continuas, -loudness,loudness = loudness_reg_imp ) %>%
+  group_by(track_name, artist_key, artist_name) %>%
+  summarise_all(function(x) mean(x, na.rm = T)) %>% 
+  left_join(df_audio_features %>% 
+               select(artist_name, artist_key, track_name, explicit, mode_name) %>% 
+               distinct(artist_name, artist_key, track_name, .keep_all = T) )
+              
+
+#creacion columnas
+#by median
+df_audio_ft_select$acousticness_cat <- cut_median(df_audio_ft_select$acousticness)
+df_audio_ft_select$duration_ms_cat <- cut_median(df_audio_ft_select$duration_ms)
+df_audio_ft_select$liveness_cat <-cut_median(df_audio_ft_select$liveness)
+df_audio_ft_select$speechiness_cat <- cut_median(df_audio_ft_select$speechiness)
+
+#by binary
+df_audio_ft_select$instrumentalness_cat <- cut_binary(df_audio_ft_select$instrumentalness)
+df_audio_ft_select$loudness_cat <- cut_binary(df_audio_ft_select$loudness)
+
+#by cunatile
+df_audio_ft_select$tempo_cat <- cut_cuantile(df_audio_ft_select$tempo)
+df_audio_ft_select$valence_cat <- cut_cuantile(df_audio_ft_select$valence)
+df_audio_ft_select$danceability_cat <- cut_cuantile(df_audio_ft_select$danceability)
+
+#cant markets
+df_audio_ft_select$cant_markets_cat <- cut(df_audio_ft_select$cant_markets, 
+                                           breaks = c(0, 70, 110, Inf), 
+                                           labels = c("Baja","Media","Alta"))
+
+#true categories vbles
+df_audio_ft_select$explicit_cat <- ifelse(df_audio_ft_select$explicit ==TRUE, "Si", "No")
+df_audio_ft_select$mode_name_cat <- df_audio_ft_select$mode_name
+
+# filtro
+df_audio_ft_cat <- df_audio_ft_select %>% 
+  select( artist_name, artist_key, track_name, contains("_cat")  )
+
+
+x <- df_audio_ft_select %>% 
+  select( contains("_cat")  )
+
+for(i in names(x) ){
+  barplot(table(x[,i]), las=2,
+          maiexn = paste("Barplot de", i, "(charts)") )
+
+   # cat(table(  x[,i] ))
+   }
+
+
+```
+
+
+## Charts
+```{r}
+df_charts_sel <- df_charts %>% 
+  ungroup() %>% 
+  select( "Track_Name", "Artist", 
+                       "streams_avg", "position_median",
+                       "semanas_sum", "popularidad")
+
+ggplot(reshape2::melt(df_charts_sel[,3:6]), aes(value))+
+  geom_histogram()+
+  facet_wrap(~variable, scales = "free")+
+  labs(title = "Histogramas originales")
+
+
+df_charts_sel$streams_avg_chart = cut_cuantile(df_charts_sel$streams_avg)
+df_charts_sel$popularidad_chart = cut_cuantile(df_charts_sel$popularidad)
+
+df_charts_sel$position_median_chart = cut(df_charts_sel$position_median,
+                                        breaks = quantile(df_charts_sel$position_median), 
+                                        include.lowest = T,
+                                        labels=c( "Muy alta", "Alta", "Media", "Baja"))
+
+df_charts_sel$semanas_sum_chart = cut(df_charts_sel$semanas_sum,
+                                    breaks = c(0, 2,4,13, Inf),
+                                    include.lowest = T,
+                                    labels=c("Baja","Media","Alta", "Muy alta"))
+
+
+# filtro
+df_charts_cat <- df_charts_sel %>% 
+  select( Artist,  Track_Name, contains("_chart")  )
+
+```
+
+
+
+```{r}
+# JOIN FINAL
+
+df_cat <- df_audio_ft_cat %>% 
+  right_join( df_charts_cat ,
+               by = c("track_name" = "Track_Name", 
+                      "artist_key" ="Artist")) 
+
+```
+
+
+
+|# LYRICS
+
+
+## Filtro por idioma
+```{r}
+library(textcat)
+
+df_lyrics <- read.csv("data/df_lyrics.csv") %>% 
+  select(-X)
+
+df_lyrics_unicas <- df_lyrics %>% 
+  distinct(artist_name, track_name, lyrics, .keep_all = T)
+
+#join
+join_ly_ft = merge(x = df_cat, 
+      y = df_lyrics_unicas,
+      by.x = c("artist_key","track_name"),
+      by.y = c("artist_name","track_name")) %>% 
+  distinct(lyrics, .keep_all = T)
+
+#filtro de idioma
+spa_lyrics = join_ly_ft[textcat(join_ly_ft$lyrics)=="spanish", ] 
+                        #c("artist_name", "track_name", "lyrics")] 
+en_lyrics = join_ly_ft[textcat(join_ly_ft$lyrics)%in% c("english", "scots"), ]
+                       #c("artist_name", "track_name", "lyrics")] 
+
+
+```
+
+
+```{r}
+# tabla contingencia de idiomas
+# idiomas = textcat(df_lyrics_unicas$lyrics)
+# sort(table(idiomas), decreasing = T)
+```
+
+### limpieza ingles
+```{r}
+#funciones
+#funcion para corregir palabras
+decontracted = function(txt){
+  txt = gsub("ain't", "aint", txt)
+  txt = gsub("wanna", "want to", txt)
+  txt = gsub("gonna", "going to", txt)
+  txt = gsub("won't", "will not", txt)
+  txt = gsub("c'mon", "come on", txt)
+  txt = gsub("let's", "let us", txt)
+  txt = gsub("\\'s", " is", txt)
+  txt = gsub("\\'t", " not", txt)
+  txt = gsub("\\'ll", " will", txt)
+  txt = gsub("\\'m", " am", txt)
+  txt = gsub("\\'re", " are", txt)
+  txt = gsub("\\'d", " had", txt)
+  txt = gsub("\\'ve", " have", txt)
+  txt = gsub("couldn", "could", txt)
+  txt = gsub("don", "do", txt)
+  txt = gsub("doesn", "does", txt)
+  txt = gsub("isn", "is", txt)
+  txt = gsub("mustn", "must", txt)
+  txt = gsub("shouldn", "should", txt)
+  txt = gsub("wasn", "was", txt)
+  txt = gsub("\\'n", " and ", txt)
+  txt = gsub("\\^'n'", " and ", txt)
+  txt = gsub("\\^n'", " and ", txt)
+  txt = gsub("\\'cause", " because", txt)
+  txt = gsub("\\b'u\\b", " you", txt)
+  txt = gsub("\\bu'\\b", " you ", txt)
+  txt = gsub("\\bu\\b", "you", txt)
+  txt = gsub("\\in'", "ing", txt)
+  return(txt)
+}
+
+
+#Función para limpiar. 
+text_cleaning = function(txt, language){
+  txt = sub('^.+?\\[.*?\\]',"", txt) #ok
+  txt = sub("More on Genius.*","", txt)
+  txt = gsub('\\[.*?\\]', '', txt)
+  txt = gsub("\\n"," ", txt)
+  txt = gsub("[()]", " ", txt)
+  txt = gsub("([a-z]+)([A-Z]+)", "\\1 \\2", txt)
+  txt = tolower(txt)
+  txt = gsub("\\d", " ", txt)
+  if(language == "en"){
+    txt = decontracted(txt)
+  }else if (language == "es"){
+    txt = gsub("ñi","ni", txt)
+    txt = gsub('ñ', 'ni', txt)
+    txt = stri_trans_general(txt,"Latin-ASCII")
+  }
+  txt = gsub("\\W+\\b", " ", txt)
+  return(txt)
+}
+
+#limpio las letras en ingles
+en_lyrics$lyrics_cleaning = text_cleaning(en_lyrics$lyrics, language = "en")
+spa_lyrics$lyrics_cleaning = text_cleaning(spa_lyrics$lyrics, language = "es")
+
+
+#write.csv(en_lyrics, "data/en_lyrics.csv", row.names = FALSE)
+
+
+```
+
+## STOPWORDS
+
+### Inglés
+```{r}
+
+#El word_count_df se realiza con Python (ejecutar en_lyrics_word_coun)
+word_counts_df <- read.csv("data/en_lyrics_word_count.csv")
+
+```
+
+```{r}
+x <- 1:nrow(word_counts_df)
+f <- word_counts_df$counts
+plot(x,f, type="l",
+          log = 'xy',
+          col="blue",
+          lwd=3,
+          ylab = "Frecuencia Absoluta",
+          xlab = "",
+          main="Frecuencia de Palabras - Ley de Zipf")
+```
+
+```{r}
+library(stopwords)
+
+threshold <- 1000
+
+x <- as.vector(word_counts_df[word_counts_df$counts>threshold,]$word)
+
+not_remove_list = c("bitch","fuck","love","baby","nigga","feel", "girl", "shit")
+
+top_stopwords <- setdiff(x, not_remove_list)
+
+smart_stopwords <- stopwords("en", source = "smart")
+my_eng_stopwords <- unique(append(smart_stopwords, top_stopwords))
+
+```
+
+
+
+### Español
+
+```{r}
+my_spa_stopwords <- unique(text_cleaning(stopwords("es", source = "stopwords-iso"), language = "es"))  
+```
+
+
+### Borro Stopwords
+```{r}
+del_stopwords = function(txt, stopword_list){
+  remove_regex = paste("\\b(", paste(stopword_list, collapse = "|"),")\\W", sep="")
+  txt = gsub(remove_regex, " ", txt)
+  txt = gsub("\\W+\\b", " ", txt)
+  return(txt)
+}
+
+spa_lyrics$sin_stopwords <- del_stopwords(spa_lyrics$lyrics_cleaning, my_spa_stopwords)
+en_lyrics$sin_stopwords <- del_stopwords(en_lyrics$lyrics_cleaning, my_eng_stopwords)
+
+```
+
+
+
+## DICCIONARIO DE MALAS PALABRAS
+
+### Español
+```{r}
+#Diccionario español
+malas_palabras_1 <- read_csv("data/malas_palabras.txt", 
+    col_names = FALSE)
+
+malas_palabras_2 <- read_csv("data/malas_palabras_translate.txt", 
+    col_names = FALSE)
+
+malas_palabras_3 <- read_csv("data/malas_palabras_wiki.txt", 
+    col_names = FALSE) %>% 
+  select(X1)
+
+malas_palabras_4 <- read_csv("data/palabras_profanas_es.txt", 
+                             col_names = FALSE)
+
+malas_palabras <- rbind(malas_palabras_1, malas_palabras_2,
+                        malas_palabras_3, malas_palabras_4)
+
+
+#Hacer unique para eliminar las repetidas
+
+malas_palabras$limpias = text_cleaning(malas_palabras$X1, language="es")
+```
+
+### Inglés
+```{r}
+#Genero lista de malas palabras
+racist_words <- unique(tolower(lexicon::profanity_racist))
+
+biglou <- read.csv("https://www.cs.cmu.edu/~biglou/resources/bad-words.txt", header=FALSE, col.names = c("words"))
+
+contar_bad_words <- function(x){
+  x <- profanity(x,profanity_list = biglou$words)
+  q <- sum(x$profanity_count)
+  return (q)
+  }
+en_lyrics$cant_bad_words <- sapply(en_lyrics[,"sin_stopwords"], contar_bad_words)
+
+en_lyrics$bad_words_cat <- cut(en_lyrics$cant_bad_words, breaks = c(0,10,20,50,Inf), labels=c("bajo","medio","alto","muy_alto"))
+```
+
+
+## MATRIZ TERMINO DOCUMENTO
+```{r}
+####################################################################
+####### Generación de la Matríz Término-Documento del corpus #######
+####################################################################
+#función
+corpus.pro2tdm <- function(corpus, ponderacion, n_terms){
+  #corpus
+  
+  
+  #matriz TD 
+  dtm <- TermDocumentMatrix(corpus,
+                            control = list(weighting = ponderacion))
+  matriz_td <- as.matrix(dtm)
+  
+  
+  # Calculamos la frecuencia de cada término en el corpus
+  freq_term <- head(sort(rowSums(matriz_td),decreasing=TRUE), n_terms)
+  
+  #matriz transpuesta de los n_terms mas frecuentes
+  matriz_nf <- t(matriz_td[sort(names(freq_term)), ])
+  
+  #pasaje a binario
+  matriz_nf[matriz_nf>0] <- 1
+  
+  return(matriz_nf)
+  
+  }
+
+# ingles  
+corpus_eng = Corpus(VectorSource(enc2utf8(en_lyrics$sin_stopwords)))
+matriz <- corpus.pro2tdm(corpus = corpus_eng, ponderacion= "weightTf",n_terms= 150)
+df_tm <- as.data.frame(matriz)
+
+#español
+corpus_esp = Corpus(VectorSource(enc2utf8(spa_lyrics$sin_stopwords)))
+matriz_esp <- corpus.pro2tdm(corpus = corpus_esp, ponderacion= "weightTf",n_terms= 150)
+df_tm_esp <- as.data.frame(matriz_esp)
+```
+
+
+## JOIN CATEGORICAS Y LYRICS
+### Inglés
+```{r}
+
+generos <- read.csv("data/selected_genres_by_id.csv") %>% 
+  select(-artist_id) %>% 
+  rename(genero = selected_genre)
+
+unique(generos$genero)
+
+en_lyrics <- en_lyrics %>% 
+  left_join(generos , by ="artist_name")
+
+## Join matriz de palabras con artista y track
+df_ly_feat <-  cbind(en_lyrics, df_tm)
+df_ly_feat <- df_ly_feat %>% select (-c("artist_name", "artist_key","track_name","lyrics", "lyrics_cleaning","sin_stopwords", "cant_bad_words"))
+
+
+mice::md.pattern(df_ly_feat, rotate.names = T)
+
+df_ly_feat$id = 1:nrow(df_ly_feat)
+
+df_melt <- reshape2::melt(data = df_ly_feat, id.vars = c("id"))  %>%
+  arrange(id)
+
+df_melt <- df_melt[df_melt$value != 0,]
+
+df_melt_txt <- df_melt[df_melt$value == 1,]
+df_melt_cat <- df_melt[df_melt$value != 1,]
+
+df_melt_cat$variable =  paste0(df_melt_cat$variable, "=", as.character(df_melt_cat$value))
+
+
+#denomino a los términos profanos
+df_melt_txt <- df_melt_txt %>% 
+  mutate(variable = case_when(as.character(variable) %in% biglou$words ~
+                                paste0("PROFANE_", as.character(variable)),
+                              as.character(variable) %in%  racist_words ~
+                                paste0("RACIST_", as.character(variable)),
+                              T ~ paste0("TERM_", as.character(variable))
+                              )  
+         )
+
+
+df_melt_txt_to_ruls <- rbind(df_melt_txt, df_melt_cat) %>% arrange(id)
+
+df_melt_txt_to_ruls <- na.omit(df_melt_txt_to_ruls[,-c(3)])
+
+names(df_melt_txt_to_ruls ) = c("TID", "item")
+
+
+
+# df_melt_txt[df_melt_txt$variable %in% biglou$words,]
+```
+
+### Español
+```{r}
+
+spa_lyrics <- spa_lyrics %>% 
+  left_join(generos , by ="artist_name")
+
+df_ly_feat_esp <- cbind(spa_lyrics, df_tm_esp)
+df_ly_feat_esp <- df_ly_feat_esp %>% select (-c("artist_key",  "artist_key","track_name","lyrics",  "lyrics_cleaning","sin_stopwords"))
+
+                                            
+df_ly_feat_esp$id = 1:nrow(df_ly_feat_esp)
+
+df_melt_esp <- reshape2::melt(data = df_ly_feat_esp, id.vars = c("id"))  %>%
+  arrange(id)
+
+df_melt_esp <- df_melt_esp[df_melt_esp$value != 0,]
+
+df_melt_esp_txt <- df_melt_esp[df_melt_esp$value == 1,]
+df_melt_esp_cat <- df_melt_esp[df_melt_esp$value != 1,]
+
+df_melt_esp_cat$variable =  paste0(df_melt_esp_cat$variable, "=", as.character(df_melt_esp_cat$value))
+
+
+#denomino a los términos profanos
+df_melt_esp_txt <- df_melt_esp_txt %>% 
+  mutate(variable = case_when(as.character(variable) %in% malas_palabras$limpias ~
+                                paste0("PROFANE_", as.character(variable)),
+                              T ~ paste0("TERM_", as.character(variable))
+                              ))
+
+
+df_melt_txt_to_ruls_esp <- rbind(df_melt_esp_txt, df_melt_esp_cat)
+
+df_melt_txt_to_ruls_esp <- na.omit(df_melt_txt_to_ruls_esp[,-c(3)])
+names(df_melt_txt_to_ruls_esp ) = c("TID", "item")
+
+
+```
+
+# REGLAS
+## Ingles
+```{r}
+
+write.table(df_melt_txt_to_ruls, file="data/transaccions_lyrics_features.txt", row.names = F)
+
+# Reglas
+# chequear nan's
+lyrics_trans <- read.transactions("data/transaccions_lyrics_features.txt", format = "single", cols = c(1,2))
+
+
+arules::inspect(head(lyrics_trans, 3))
+
+# summary(lyrics_trans)
+reglas <- apriori(lyrics_trans, parameter = list(support=0.1,
+                    confidence = 0.1, target  = "rules"  ))
+
+reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "expli")
+arules::inspect(head(sort(reglas_sub, by = "lift", decreasing = T),10))
+
+
+reglas_sub <- subset(reglas, subset = lhs %pin% "danceability_cat" & rhs %pin% "popularidad")
+reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "position")
+reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" & rhs %pin% "genero")
+
+#REGLAS ENCONTRADAS
+reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" &  rhs %pin% "genero")
+
+reglas_sub <- subset(reglas, subset = lhs %pin% "PROFANE_" & rhs %pin% "streams_avg_cat")
+reglas_sub <- subset(reglas, subset = lhs %pin% "PROFANE_" & rhs %pin% "position")
+reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat" & rhs %pin% "position")
+reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat" & rhs %pin% "popularidad") #muy buena
+
+```
