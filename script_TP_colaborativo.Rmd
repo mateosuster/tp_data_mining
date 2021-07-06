@@ -1115,35 +1115,22 @@ df_tm_esp <- as.data.frame(matriz_esp)
 ### Inglés
 ```{r}
 
+generos <- read.csv("data/selected_genres_by_id.csv") %>% 
+  select(-artist_id)
 
+df_ly_feat <- generos %>% 
+  left_join(generos , by ="artist_name")
 
 ## Join matriz de palabras con artista y track
 df_ly_feat <-  cbind(en_lyrics, df_tm)
-df_ly_feat <- df_ly_feat %>% select (-c("artist_key","track_name","lyrics", "lyrics_cleaning","sin_stopwords", "cant_bad_words"))
+df_ly_feat <- df_ly_feat %>% select (-c("artist_name", "artist_key","track_name","lyrics", "lyrics_cleaning","sin_stopwords", "cant_bad_words"))
 
 
-
-nrow(df_tm)
-nrow(en_lyrics) # 1055 instancias
-nrow(df_ly_feat) #joinean 869
-na.omit(df_ly_feat)
-
-mice::md.pattern(df_ly_feat[, 153:ncol(df_ly_feat)], rotate.names = T)
-
-filter <- !names(df_ly_feat) %in% c("artist_name", "track_name" )
-
-df_ly_feat_ok <- df_ly_feat[, filter]
-# df_ly_feat_ok = df_ly_feat_ok[, -(which(colSums(df_ly_feat_ok) == 0))]
-
-# colSums(df_ly_feat_ok)
-
-head(df_ly_feat_ok, 3)
-head(df_ly_feat, 3)
-
+mice::md.pattern(df_ly_feat, rotate.names = T)
 
 df_ly_feat$id = 1:nrow(df_ly_feat)
 
-df_melt <- reshape2::melt(data = df_ly_feat[,3:ncol(df_ly_feat)], id.vars = c("id"))  %>%
+df_melt <- reshape2::melt(data = df_ly_feat, id.vars = c("id"))  %>%
   arrange(id)
 
 df_melt <- df_melt[df_melt$value != 0,]
@@ -1153,9 +1140,6 @@ df_melt_cat <- df_melt[df_melt$value != 1,]
 
 df_melt_cat$variable =  paste0(df_melt_cat$variable, "=", as.character(df_melt_cat$value))
 
-
-head(df_melt_txt )
-dim(df_melt_txt )
 
 #denomino a los términos profanos
 df_melt_txt <- df_melt_txt %>% 
@@ -1168,6 +1152,10 @@ df_melt_txt <- df_melt_txt %>%
          )
 
 
+df_melt_txt_to_ruls <- rbind(df_melt_txt, df_melt_cat) %>% arrange(id)
+
+df_melt_txt_to_ruls <- na.omit(df_melt_txt_to_ruls[,-c(3)])
+names(df_melt_txt_to_ruls ) = c("TID", "item")
 
 
 # df_melt_txt[df_melt_txt$variable %in% biglou$words,]
@@ -1176,22 +1164,12 @@ df_melt_txt <- df_melt_txt %>%
 ### Español
 ```{r}
 df_ly_feat_esp <- cbind(spa_lyrics, df_tm_esp)
-df_ly_feat_esp <- df_ly_feat_esp %>% select (-c("artist_key","track_name","lyrics",  "lyrics_cleaning","sin_stopwords")
+df_ly_feat_esp <- df_ly_feat_esp %>% select (-c("artist_key",  "artist_key","track_name","lyrics",  "lyrics_cleaning","sin_stopwords"))
 
-                                             
-                                             
-nrow(spa_lyrics)
-nrow(df_ly_feat_esp)
-na.omit(df_ly_feat_esp)
+                                            
+df_ly_feat_esp$id = 1:nrow(df_ly_feat_esp)
 
-mice::md.pattern(df_ly_feat_esp[, 153:ncol(df_ly_feat_esp)], rotate.names = T)
-
-
-df_ly_feat_ok_esp <- df_ly_feat_esp[, filter]
-
-df_ly_feat_ok_esp$id = 1:nrow(df_ly_feat_ok_esp)
-
-df_melt_esp <- reshape2::melt(data = df_ly_feat_ok_esp[,2:ncol(df_ly_feat_ok_esp)], id.vars = c("id"))  %>%
+df_melt_esp <- reshape2::melt(data = df_ly_feat_esp, id.vars = c("id"))  %>%
   arrange(id)
 
 df_melt_esp <- df_melt_esp[df_melt_esp$value != 0,]
@@ -1221,17 +1199,13 @@ names(df_melt_txt_to_ruls_esp ) = c("TID", "item")
 # REGLAS
 ## Ingles
 ```{r}
-df_melt_txt_to_ruls <- rbind(df_melt_txt, df_melt_cat) %>% arrange(id)
-
-df_melt_txt_to_ruls <- na.omit(df_melt_txt_to_ruls[,-c(3)])
-names(df_melt_txt_to_ruls ) = c("TID", "item")
-
 
 write.table(df_melt_txt_to_ruls, file="data/transaccions_lyrics_features.txt", row.names = F)
 
 # Reglas
 # chequear nan's
 lyrics_trans <- read.transactions("data/transaccions_lyrics_features.txt", format = "single", cols = c(1,2))
+
 
 arules::inspect(head(lyrics_trans, 3))
 
