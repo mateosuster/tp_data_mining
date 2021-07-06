@@ -239,6 +239,7 @@ df_charts_sel$semanas_sum_chart = cut(df_charts_sel$semanas_sum,
 df_charts_cat <- df_charts_sel %>% 
   select( Artist,  Track_Name, contains("_chart")  )
 
+barplot(table(df_charts_sel$popularidad_chart))
 ```
 
 
@@ -395,6 +396,8 @@ top_stopwords <- setdiff(x, not_remove_list)
 smart_stopwords <- stopwords("en", source = "smart")
 my_eng_stopwords <- unique(append(smart_stopwords, top_stopwords))
 
+
+
 ```
 
 
@@ -463,7 +466,7 @@ contar_bad_words <- function(x){
   }
 en_lyrics$cant_bad_words <- sapply(en_lyrics[,"sin_stopwords"], contar_bad_words)
 
-en_lyrics$bad_words_cat <- cut(en_lyrics$cant_bad_words, breaks = c(0,10,20,50,Inf), labels=c("bajo","medio","alto","muy_alto"))
+en_lyrics$bad_words_cat <- cut(en_lyrics$cant_bad_words, breaks = c(0,10,20,50,Inf), labels=c("Bajo","Medio","Alto","Muy alta"))
 ```
 
 
@@ -569,8 +572,9 @@ names(df_melt_txt_to_ruls ) = c("TID", "item")
 spa_lyrics <- spa_lyrics %>% 
   left_join(generos , by ="artist_name")
 
+
 df_ly_feat_esp <- cbind(spa_lyrics, df_tm_esp)
-df_ly_feat_esp <- df_ly_feat_esp %>% select (-c("artist_key",  "artist_key","track_name","lyrics",  "lyrics_cleaning","sin_stopwords"))
+df_ly_feat_esp <- df_ly_feat_esp %>% select (-c("artist_key", "artist_name",  "artist_key","track_name","lyrics",  "lyrics_cleaning","sin_stopwords"))
 
                                             
 df_ly_feat_esp$id = 1:nrow(df_ly_feat_esp)
@@ -619,20 +623,103 @@ arules::inspect(head(lyrics_trans, 3))
 reglas <- apriori(lyrics_trans, parameter = list(support=0.1,
                     confidence = 0.1, target  = "rules"  ))
 
-reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "expli")
+```
+
+### ¿Cuáles son los features mas importantes para determinar el exito de una cancion? (en terminos de posición, semanas y popularidad)
+
+```{r}
+
+reglas_sub <- subset(reglas, subset = lhs %in% "_cat" & rhs %pin% "expli")
+
+
+
+reglas_sub <- subset(reglas, subset = lhs %in% "danceability_cat" & rhs %pin% "popularidad")
+reglas_sub <- subset(reglas, subset = lhs %in% "instrumentalness_cat=Alta")
+
+
+reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "position")
+
+
+
+#reglas encontradas
+reglas_sub <- subset(reglas, subset = !(lhs %pin% "semanas_sum") & !(lhs %pin% "streams") & !(lhs %pin% "position")  
+                     &   rhs %pin% "popularidad") # lhs =  {explicit_cat=No,genero=pop}  // lhs ={bad_words_cat=bajo,explicit_cat=No}
+
+reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "popularidad")
+
+reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "popularidad" & size(lhs) <2 ) 
+
 arules::inspect(head(sort(reglas_sub, by = "lift", decreasing = T),10))
 
 
-reglas_sub <- subset(reglas, subset = lhs %pin% "danceability_cat" & rhs %pin% "popularidad")
-reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "position")
-reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" & rhs %pin% "genero")
+```
+
+### ¿Existe una asociación entre la cantidad de palabras profanas que tiene una canción y su posición en el ranking?
+
+
+```{r}
 
 #REGLAS ENCONTRADAS
-reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" &  rhs %pin% "genero")
-
-reglas_sub <- subset(reglas, subset = lhs %pin% "PROFANE_" & rhs %pin% "streams_avg_cat")
 reglas_sub <- subset(reglas, subset = lhs %pin% "PROFANE_" & rhs %pin% "position")
 reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat" & rhs %pin% "position")
-reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat" & rhs %pin% "popularidad") #muy buena
+
+
+# Reglas encontradas
+reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat" & rhs %pin% "position" , size(lhs)==1) # 	{bad_words_cat=bajo}	=>	{position_median_chart=Muy alta}
+
+reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat" & rhs %pin% "popularidad")# , size(lhs)==1 ) 
+reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat") 
+
+arules::inspect(head(sort(reglas_sub, by = "lift", decreasing = T),20))
 
 ```
+
+
+### ¿Existen palabras que son propias de un género musical?
+
+```{r}
+
+
+reglas_sub <- subset(reglas, subset = rhs %pin% "genero=reggaeton") 
+
+
+reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" &  rhs %pin% "genero") 
+# lhs = {explicit_cat=No,TERM_baby}
+# lhs =	{TERM_money}
+
+arules::inspect(head(sort(reglas_sub, by = "lift", decreasing = T),20))
+
+
+```
+
+
+
+## Español
+```{r}
+
+write.table(df_melt_txt_to_ruls_esp, file="data/transaccions_lyrics_features_esp.txt", row.names = F)
+
+# Reglas
+# chequear nan's
+lyrics_trans_esp <- read.transactions("data/transaccions_lyrics_features_esp.txt", 
+                                      format = "single", cols = c(1,2))
+
+
+arules::inspect(head(lyrics_trans_esp, 3))
+
+# summary(lyrics_trans)
+reglas_esp <- apriori(lyrics_trans_esp, parameter = list(support=0.1,
+                    confidence = 0.1, target  = "rules"  ))
+
+
+
+reglas_sub_esp <- subset(reglas_esp, subset = lhs %pin% "_cat" & rhs %in% "position_median_chart=Alta")
+
+
+reglas_sub_esp <- subset(reglas_esp, subset = lhs %pin% "TERM" &  rhs %pin% "genero") 
+# lhs = TERM_noche
+
+arules::inspect(head(sort(reglas_sub_esp, by = "lift", decreasing = T),15))
+
+```
+
