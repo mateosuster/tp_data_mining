@@ -717,7 +717,10 @@ reglas_sub <- subset(reglas, subset = rhs %pin% "genero=reggaeton")
 
 reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" &  rhs %pin% "genero") 
 reglas_sub <- subset(reglas, subset = lhs %pin% "money" &  rhs %pin% "genero") 
-reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" & rhs %pin% "genero=pop")# & size(lhs) ==1) 
+reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" & rhs %pin% "genero=pop" & size(lhs) ==1) 
+reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" & rhs %pin% "genero=rap" & size(lhs) ==1) 
+reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" & rhs %pin% "genero=hip hop" & size(lhs) ==1) 
+reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" & rhs %pin% "genero=rock" & size(lhs) ==1) 
 # lhs = {explicit_cat=No,TERM_baby}
 # lhs =	{TERM_money}
 
@@ -750,7 +753,7 @@ reglas_esp <- apriori(lyrics_trans_esp, parameter = list(support=0.1,
 reglas_sub_esp <- subset(reglas_esp, subset = lhs %pin% "_cat" & rhs %in% "position_median_chart=Alta")
 
 
-reglas_sub_esp <- subset(reglas_esp, subset = lhs %pin% "TERM" &  rhs %pin% "genero") 
+reglas_sub_esp <- subset(reglas_esp, subset = lhs %pin% "TERM" &  rhs %pin% "genero" & size(lhs)==1) 
 # lhs = TERM_noche
 
 arules::inspect(head(sort(reglas_sub_esp, by = "lift", decreasing = T),15))
