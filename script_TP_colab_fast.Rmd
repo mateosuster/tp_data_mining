@@ -83,9 +83,9 @@ summary(fit)
 
 #graficos con loudness con imputacion
 par(mfrow = c(2,1)) 
-hist(df_audio_features[,'loudness_reg_imp'], main='loudness', xlab="")
+# hist(df_audio_features[,'loudness_reg_imp'], main='loudness', xlab="")
 #hist(sqrt(df_audio_features[,'loudness_reg_imp']), main= 'loudness_sqrt', xlab="")
-boxplot(df_audio_features[,'loudness_reg_imp'], horizontal = T)
+# boxplot(df_audio_features[,'loudness_reg_imp'], horizontal = T)
 #boxplot(sqrt(df_audio_features[,'loudness_reg_imp']), horizontal = T)
 
 
@@ -109,7 +109,7 @@ df_charts <- df_charts_raw %>%
             position_min = min(Position), 
             position_max = max(Position)) %>% 
   ungroup() %>% 
-  mutate(popularidad = as.numeric(streams_sum*semanas_sum/position_avg) )
+  mutate(popularidad = as.numeric(streams_sum/position_median) )
 
 library(reshape2)
 ggplot(melt(df_charts[,3:ncol(df_charts)]), aes(value))+
@@ -163,6 +163,11 @@ df_audio_ft_select <-df_audio_features %>%
                distinct(artist_name, artist_key, track_name, .keep_all = T) )
               
 
+ggplot(melt(df_audio_ft_select[,features_continuas]), aes(value))+
+  geom_histogram()+
+  facet_wrap(~variable , scales = "free")
+
+
 #creacion columnas
 #by median
 df_audio_ft_select$acousticness_cat <- cut_median(df_audio_ft_select$acousticness)
@@ -172,7 +177,7 @@ df_audio_ft_select$speechiness_cat <- cut_median(df_audio_ft_select$speechiness)
 
 #by binary
 df_audio_ft_select$instrumentalness_cat <- cut_binary(df_audio_ft_select$instrumentalness)
-df_audio_ft_select$loudness_cat <- cut_binary(df_audio_ft_select$loudness)
+# df_audio_ft_select$loudness_cat <- cut_binary(df_audio_ft_select$loudness)
 
 #by cunatile
 df_audio_ft_select$tempo_cat <- cut_cuantile(df_audio_ft_select$tempo)
@@ -198,11 +203,22 @@ x <- df_audio_ft_select %>%
 
 for(i in names(x) ){
   barplot(table(x[,i]), las=2,
-          maiexn = paste("Barplot de", i, "(charts)") )
+          main = paste("Barplot de", i) )
 
    # cat(table(  x[,i] ))
    }
 
+
+```
+
+```{r}
+x <- cor(df_audio_ft_select[,c(features_continuas[-c(4)])],  use =  "complete.obs")
+corrplot::corrplot(x, type = "upper", title = "Correlacion de atributos de audio_features", mar=c(0,0,1,0), method="number" ,number.cex=0.7)
+
+
+df_audio_charts_s_at_redund <- caret::findCorrelation(x, cutoff=0.60, names=TRUE, verbose= TRUE)
+
+print(df_audio_charts_s_at_redund) # Energy  tienen alta correlación con otras variables.
 
 ```
 
@@ -239,7 +255,7 @@ df_charts_sel$semanas_sum_chart = cut(df_charts_sel$semanas_sum,
 df_charts_cat <- df_charts_sel %>% 
   select( Artist,  Track_Name, contains("_chart")  )
 
-barplot(table(df_charts_sel$popularidad_chart))
+barplot(table(df_charts_sel$semanas_sum_chart))
 ```
 
 
@@ -455,7 +471,7 @@ malas_palabras$limpias = text_cleaning(malas_palabras$X1, language="es")
 ### Inglés
 ```{r}
 #Genero lista de malas palabras
-racist_words <- unique(tolower(lexicon::profanity_racist))
+racist_words <- append(unique(tolower(lexicon::profanity_racist)), "nigga")
 
 biglou <- read.csv("https://www.cs.cmu.edu/~biglou/resources/bad-words.txt", header=FALSE, col.names = c("words"))
 
@@ -620,7 +636,7 @@ lyrics_trans <- read.transactions("data/transaccions_lyrics_features.txt", forma
 arules::inspect(head(lyrics_trans, 3))
 
 # summary(lyrics_trans)
-reglas <- apriori(lyrics_trans, parameter = list(support=0.1,
+reglas <- apriori(lyrics_trans, parameter = list(support=0.04,
                     confidence = 0.1, target  = "rules"  ))
 
 ```
@@ -629,11 +645,11 @@ reglas <- apriori(lyrics_trans, parameter = list(support=0.1,
 
 ```{r}
 
-reglas_sub <- subset(reglas, subset = lhs %in% "_cat" & rhs %pin% "expli")
+# reglas_sub <- subset(reglas, subset = lhs %in% "_cat" & rhs %pin% "expli")
 
 
 
-reglas_sub <- subset(reglas, subset = lhs %in% "danceability_cat" & rhs %pin% "popularidad")
+reglas_sub <- subset(reglas, subset = lhs %pin% "danceabil" & rhs %pin% "popularidad")
 reglas_sub <- subset(reglas, subset = lhs %in% "instrumentalness_cat=Alta")
 
 
@@ -642,12 +658,28 @@ reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "position")
 
 
 #reglas encontradas
-reglas_sub <- subset(reglas, subset = !(lhs %pin% "semanas_sum") & !(lhs %pin% "streams") & !(lhs %pin% "position")  
-                     &   rhs %pin% "popularidad") # lhs =  {explicit_cat=No,genero=pop}  // lhs ={bad_words_cat=bajo,explicit_cat=No}
+reglas_sub <- subset(reglas, subset = !(lhs %pin% "semanas_sum") & !(lhs %pin% "streams") & !(lhs %pin% "popularidad")  
+                     &   rhs %pin% "position") # lhs =  {explicit_cat=No,genero=pop}  // lhs ={bad_words_cat=bajo,explicit_cat=No}
 
-reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "popularidad")
+reglas_sub <- subset(reglas, subset = !(lhs %pin% "semanas_sum") & !(lhs %pin% "streams") & !(lhs %pin% "position")  & !(lhs %pin% "popu")  
+                     &   rhs %pin% "chart" & size(lhs) <2)
 
-reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "popularidad" & size(lhs) <2 ) 
+# esta
+reglas_sub <- subset(reglas, subset = !(lhs %pin% "chart")  & !(lhs %pin% "TERM") &   rhs %pin% "chart" )#& size(lhs) <2)
+
+reglas_sub <- subset(reglas, subset = !(lhs %pin% "streams") & !(lhs %pin% "position") & !(lhs %pin% "popularidad")  
+                     &   rhs %pin% "semanas_sum") # lhs =  {explicit_cat=No,genero=pop}  // lhs ={bad_words_cat=bajo,explicit_cat=No}
+
+reglas_sub <- subset(reglas, subset =  rhs %pin% "popularidad")
+
+reglas_sub <- subset(reglas, subset = lhs %pin% "PROF" & !(lhs %pin% "semanas") & rhs %pin% "popularidad")
+
+reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "position")
+reglas_sub <- subset(reglas, subset = lhs %pin% "_cat" & rhs %pin% "streams")
+
+
+
+reglas_sub <- subset(reglas, subset =  rhs %pin% "Alta" ) 
 
 arules::inspect(head(sort(reglas_sub, by = "lift", decreasing = T),10))
 
@@ -684,6 +716,8 @@ reglas_sub <- subset(reglas, subset = rhs %pin% "genero=reggaeton")
 
 
 reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" &  rhs %pin% "genero") 
+reglas_sub <- subset(reglas, subset = lhs %pin% "money" &  rhs %pin% "genero") 
+reglas_sub <- subset(reglas, subset = lhs %pin% "TERM" & rhs %pin% "genero=pop")# & size(lhs) ==1) 
 # lhs = {explicit_cat=No,TERM_baby}
 # lhs =	{TERM_money}
 
