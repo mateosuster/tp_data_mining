@@ -22,7 +22,7 @@ library(tau)
 # CARGA DE DATOS  
 ```{r}
 df_artist <- read.csv("data/df_artist_sin_duplicados.csv")
- df_charts_raw <- read.csv("data/df_charts_sin_duplicados.csv")
+df_charts_raw <- read.csv("data/df_charts_sin_duplicados.csv")
 df_audio_features_raw <- read.csv("data/audio_features_plano_sin_duplicados.csv")
 df_lyrics <- read.csv("data/df_lyrics.csv")
  
@@ -64,8 +64,6 @@ features_categoricas <- c('explicit', 'key_name', 'mode_name', "key_mode")
 
 
 ## Imputacion de loudness
-
-
 ```{r}
 fit <- lm(loudness~energy+acousticness, data=df_audio_features)
 
@@ -147,7 +145,7 @@ cut_binary <- function(x){
 
 cut_cuantile <- function(x){
   cut(x, 
-      breaks = quantile(x), 
+      breaks = quantile(x, ), 
       include.lowest = T,
       labels=c("Baja","Media","Alta", "Muy alta") )
 }
@@ -245,10 +243,7 @@ df_charts_sel$position_median_chart = cut(df_charts_sel$position_median,
                                         include.lowest = T,
                                         labels=c( "Muy alta", "Alta", "Media", "Baja"))
 
-df_charts_sel$semanas_sum_chart = cut(df_charts_sel$semanas_sum,
-                                    breaks = c(0, 2,4,13, Inf),
-                                    include.lowest = T,
-                                    labels=c("Baja","Media","Alta", "Muy alta"))
+df_charts_sel$semanas_sum_chart = cut_median(df_charts_sel$semanas_sum)
 
 
 # filtro
@@ -293,20 +288,14 @@ join_ly_ft = merge(x = df_cat,
   distinct(lyrics, .keep_all = T)
 
 #filtro de idioma
-spa_lyrics = join_ly_ft[textcat(join_ly_ft$lyrics)=="spanish", ] 
+spa_lyrics = join_ly_ft[textcat(join_ly_ft$lyrics)%in% c("spanish", "catalan"), ] 
                         #c("artist_name", "track_name", "lyrics")] 
-en_lyrics = join_ly_ft[textcat(join_ly_ft$lyrics)%in% c("english", "scots"), ]
+en_lyrics = join_ly_ft[textcat(join_ly_ft$lyrics)%in% c("english", "scots", "frisian", "manx", "middle_frisian", "breton"), ]
                        #c("artist_name", "track_name", "lyrics")] 
 
-
 ```
 
 
-```{r}
-# tabla contingencia de idiomas
-# idiomas = textcat(df_lyrics_unicas$lyrics)
-# sort(table(idiomas), decreasing = T)
-```
 
 ### limpieza ingles
 ```{r}
@@ -314,6 +303,7 @@ en_lyrics = join_ly_ft[textcat(join_ly_ft$lyrics)%in% c("english", "scots"), ]
 #funcion para corregir palabras
 decontracted = function(txt){
   txt = gsub("ain't", "aint", txt)
+  txt = gsub("outta", "out of", txt)
   txt = gsub("wanna", "want to", txt)
   txt = gsub("gonna", "going to", txt)
   txt = gsub("won't", "will not", txt)
@@ -371,8 +361,8 @@ en_lyrics$lyrics_cleaning = text_cleaning(en_lyrics$lyrics, language = "en")
 spa_lyrics$lyrics_cleaning = text_cleaning(spa_lyrics$lyrics, language = "es")
 
 
-#write.csv(en_lyrics, "data/en_lyrics.csv", row.names = FALSE)
-
+write.csv(en_lyrics, "data/en_lyrics.csv", row.names = FALSE)
+write.csv(spa_lyrics, "data/spa_lyrics.csv", row.names = FALSE)
 
 ```
 
@@ -382,13 +372,13 @@ spa_lyrics$lyrics_cleaning = text_cleaning(spa_lyrics$lyrics, language = "es")
 ```{r}
 
 #El word_count_df se realiza con Python (ejecutar en_lyrics_word_coun)
-word_counts_df <- read.csv("data/en_lyrics_word_count.csv")
+eng_word_counts_df <- read.csv("data/en_lyrics_word_count.csv")
 
 ```
 
 ```{r}
-x <- 1:nrow(word_counts_df)
-f <- word_counts_df$counts
+x <- 1:nrow(eng_word_counts_df)
+f <- eng_word_counts_df$counts
 plot(x,f, type="l",
           log = 'xy',
           col="blue",
@@ -403,7 +393,7 @@ library(stopwords)
 
 threshold <- 1000
 
-x <- as.vector(word_counts_df[word_counts_df$counts>threshold,]$word)
+x <- as.vector(eng_word_counts_df[eng_word_counts_df$counts>threshold,]$word)
 
 not_remove_list = c("bitch","fuck","love","baby","nigga","feel", "girl", "shit")
 
@@ -421,7 +411,23 @@ my_eng_stopwords <- unique(append(smart_stopwords, top_stopwords))
 ### Español
 
 ```{r}
-my_spa_stopwords <- unique(text_cleaning(stopwords("es", source = "stopwords-iso"), language = "es"))  
+spa_word_counts_df <- read.csv("data/spa_lyrics_word_count.csv")
+```
+
+
+```{r}
+threshold <- 230
+
+x <- as.vector(spa_word_counts_df[spa_word_counts_df$counts>threshold,]$word)
+
+not_remove_list = c("soy","quiere","quiero","baby", "mas","tiene")
+
+top_stopwords <- setdiff(x, not_remove_list)
+
+spa_pck_stopwords <- unique(text_cleaning(stopwords("es", source = "stopwords-iso"), language = "es"))
+
+my_spa_stopwords <- unique(append(spa_pck_stopwords, top_stopwords))
+
 ```
 
 
@@ -436,6 +442,8 @@ del_stopwords = function(txt, stopword_list){
 
 spa_lyrics$sin_stopwords <- del_stopwords(spa_lyrics$lyrics_cleaning, my_spa_stopwords)
 en_lyrics$sin_stopwords <- del_stopwords(en_lyrics$lyrics_cleaning, my_eng_stopwords)
+
+
 
 ```
 
@@ -465,7 +473,19 @@ malas_palabras <- rbind(malas_palabras_1, malas_palabras_2,
 
 #Hacer unique para eliminar las repetidas
 
-malas_palabras$limpias = text_cleaning(malas_palabras$X1, language="es")
+malas_palabras$limpias = trimws(text_cleaning(malas_palabras$X1, language="es"))
+
+malas_palabras <- unique(malas_palabras$limpias)
+
+
+contar_malas_palabras <- function(txt){
+  return( sum(unlist(strsplit(txt, split = " "))%in%malas_palabras))
+}
+
+spa_lyrics$cant_bad_words <- unlist(lapply(spa_lyrics$sin_stopwords, function(x) contar_malas_palabras(x)))
+
+spa_lyrics$bad_words_cat <-  cut(spa_lyrics$cant_bad_words, breaks = quantile(spa_lyrics$cant_bad_words), labels=c("Bajo","Medio","Alto","Muy alta"), include.lowest = T, right = F)
+
 ```
 
 ### Inglés
@@ -475,14 +495,16 @@ racist_words <- append(unique(tolower(lexicon::profanity_racist)), "nigga")
 
 biglou <- read.csv("https://www.cs.cmu.edu/~biglou/resources/bad-words.txt", header=FALSE, col.names = c("words"))
 
-contar_bad_words <- function(x){
-  x <- profanity(x,profanity_list = biglou$words)
-  q <- sum(x$profanity_count)
-  return (q)
-  }
+contar_bad_words <- function(txt){
+  return( sum(unlist(strsplit(txt, split = " "))%in%biglou$words))
+}
+
 en_lyrics$cant_bad_words <- sapply(en_lyrics[,"sin_stopwords"], contar_bad_words)
 
-en_lyrics$bad_words_cat <- cut(en_lyrics$cant_bad_words, breaks = c(0,10,20,50,Inf), labels=c("Bajo","Medio","Alto","Muy alta"))
+
+en_lyrics$bad_words_cat <- cut(en_lyrics$cant_bad_words, breaks = c(0,10,20,50,Inf), labels=c("Bajo","Medio","Alto","Muy alta"), include.lowest = T, right = F)
+
+en_lyrics$cant_bad_words2 <- cut(en_lyrics$cant_bad_words, breaks = quantile(en_lyrics$cant_bad_words), labels=c("Bajo","Medio","Alto","Muy alta"), include.lowest = T, right = F)
 ```
 
 
@@ -531,11 +553,11 @@ df_tm_esp <- as.data.frame(matriz_esp)
 ### Inglés
 ```{r}
 
-generos <- read.csv("data/selected_genres_by_id.csv") %>% 
+generos <- read.csv("data/selected_genres_by_id.csv") #%>% 
   select(-artist_id) %>% 
   rename(genero = selected_genre)
 
-unique(generos$genero)
+
 
 en_lyrics <- en_lyrics %>% 
   left_join(generos , by ="artist_name")

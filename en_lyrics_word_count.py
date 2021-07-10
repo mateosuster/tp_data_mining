@@ -3,7 +3,7 @@ import numpy as np
 import re
 import os
 
-os.chdir("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/Repo TP/tp_data_mining")
+os.chdir("C:/Users/Asus/Desktop/DATA SCIENCE/MAESTRIA/Data Mining/tp_data_mining")
 filename = "data/en_lyrics.csv"
 
 lyrics = pd.read_csv(filename, encoding='iso-8859-1')
