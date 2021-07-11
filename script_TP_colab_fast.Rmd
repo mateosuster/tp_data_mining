@@ -484,7 +484,11 @@ contar_malas_palabras <- function(txt){
 
 spa_lyrics$cant_bad_words <- unlist(lapply(spa_lyrics$sin_stopwords, function(x) contar_malas_palabras(x)))
 
-spa_lyrics$bad_words_cat <-  cut(spa_lyrics$cant_bad_words, breaks = quantile(spa_lyrics$cant_bad_words), labels=c("Bajo","Medio","Alto","Muy alta"), include.lowest = T, right = F)
+
+cut(en_lyrics$cant_bad_words, breaks = c(0,10,20,50,Inf), labels=c("Bajo","Medio","Alto","Muy alta"), include.lowest = T, right = F)
+spa_lyrics$bad_words_cat <-  cut(spa_lyrics$cant_bad_words, breaks = c(0,5,10,20,Inf), labels=c("Bajo","Medio","Alto","Muy alta"), include.lowest = T, right = F)
+
+#spa_lyrics$bad_words_cat <-  cut(spa_lyrics$cant_bad_words, breaks = quantile(spa_lyrics$cant_bad_words), labels=c("Bajo","Medio","Alto","Muy alta"), include.lowest = T, right = F)
 
 ```
 
@@ -502,7 +506,7 @@ contar_bad_words <- function(txt){
 en_lyrics$cant_bad_words <- sapply(en_lyrics[,"sin_stopwords"], contar_bad_words)
 
 
-en_lyrics$bad_words_cat <- cut(en_lyrics$cant_bad_words, breaks = c(0,10,20,50,Inf), labels=c("Bajo","Medio","Alto","Muy alta"), include.lowest = T, right = F)
+en_lyrics$bad_words_cat <- cut(en_lyrics$cant_bad_words, breaks = c(0,5,20,50,Inf), labels=c("Bajo","Medio","Alto","Muy alta"), include.lowest = T, right = F)
 
 en_lyrics$cant_bad_words2 <- cut(en_lyrics$cant_bad_words, breaks = quantile(en_lyrics$cant_bad_words), labels=c("Bajo","Medio","Alto","Muy alta"), include.lowest = T, right = F)
 ```
@@ -712,18 +716,14 @@ arules::inspect(head(sort(reglas_sub, by = "lift", decreasing = T),10))
 
 
 ```{r}
+reglas <- apriori(lyrics_trans, parameter = list(support=0.1,
+                    confidence = 0.1, target  = "rules"  ))
 
-#REGLAS ENCONTRADAS
-reglas_sub <- subset(reglas, subset = lhs %pin% "PROFANE_" & rhs %pin% "position")
-reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat" & rhs %pin% "position")
-
-
+#
 # Reglas encontradas
 reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat" & rhs %pin% "position" , size(lhs)==1) # 	{bad_words_cat=bajo}	=>	{position_median_chart=Muy alta}
 
-reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat" & rhs %pin% "popularidad")# , size(lhs)==1 ) 
-reglas_sub <- subset(reglas, subset = lhs %pin% "bad_words_cat") 
-
+reglas_sub <- subset(reglas, subset = (lhs %pin% "bad_words_cat" & size(lhs)==1) & rhs %pin% "popularidad")# , size(lhs)==1 ) 
 arules::inspect(head(sort(reglas_sub, by = "lift", decreasing = T),20))
 
 ```
@@ -767,15 +767,10 @@ lyrics_trans_esp <- read.transactions("data/transaccions_lyrics_features_esp.txt
 arules::inspect(head(lyrics_trans_esp, 3))
 
 # summary(lyrics_trans)
-reglas_esp <- apriori(lyrics_trans_esp, parameter = list(support=0.1,
-                    confidence = 0.1, target  = "rules"  ))
+reglas_esp <- apriori(lyrics_trans_esp, parameter = list(support=0.02,
+                    confidence = 0.02, target  = "rules"  ))
 
-
-
-reglas_sub_esp <- subset(reglas_esp, subset = lhs %pin% "_cat" & rhs %in% "position_median_chart=Alta")
-
-
-reglas_sub_esp <- subset(reglas_esp, subset = lhs %pin% "TERM" &  rhs %pin% "genero" & size(lhs)==1) 
+reglas_sub_esp <- subset(reglas_esp, subset = (lhs %pin% "bad_words_cat" & size(lhs)==1) & rhs %pin% "popularidad") 
 # lhs = TERM_noche
 
 arules::inspect(head(sort(reglas_sub_esp, by = "lift", decreasing = T),15))
