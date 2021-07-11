@@ -372,7 +372,7 @@ write.csv(spa_lyrics, "data/spa_lyrics.csv", row.names = FALSE)
 ```{r}
 
 #El word_count_df se realiza con Python (ejecutar en_lyrics_word_coun)
-eng_word_counts_df <- read.csv("data/en_lyrics_word_count.csv")
+eng_word_counts_df <- read.csv("data/archivos cleaning y genero/en_lyrics_word_count.csv")
 
 ```
 
@@ -411,7 +411,7 @@ my_eng_stopwords <- unique(append(smart_stopwords, top_stopwords))
 ### Español
 
 ```{r}
-spa_word_counts_df <- read.csv("data/spa_lyrics_word_count.csv")
+spa_word_counts_df <- read.csv("data/archivos cleaning y genero/spa_lyrics_word_count.csv")
 ```
 
 
@@ -553,7 +553,7 @@ df_tm_esp <- as.data.frame(matriz_esp)
 ### Inglés
 ```{r}
 
-generos <- read.csv("data/selected_genres_by_id.csv") #%>% 
+generos <- read.csv("data/archivos cleaning y genero/selected_genres_by_id.csv") %>% 
   select(-artist_id) %>% 
   rename(genero = selected_genre)
 
@@ -630,7 +630,7 @@ df_melt_esp_cat$variable =  paste0(df_melt_esp_cat$variable, "=", as.character(d
 
 #denomino a los términos profanos
 df_melt_esp_txt <- df_melt_esp_txt %>% 
-  mutate(variable = case_when(as.character(variable) %in% malas_palabras$limpias ~
+  mutate(variable = case_when(as.character(variable) %in% malas_palabras ~
                                 paste0("PROFANE_", as.character(variable)),
                               T ~ paste0("TERM_", as.character(variable))
                               ))
